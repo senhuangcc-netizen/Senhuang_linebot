@@ -21,6 +21,9 @@ from linebot.models import (
 )
 from linebot.models import FlexSendMessage, CarouselContainer, BubbleContainer, BoxComponent, TextComponent, SeparatorComponent
 import google.generativeai as genai
+import uuid
+import database
+import newebpay_integration
 def get_price_flex():
     """產生價目表的 Flex Message 物件"""
     
@@ -327,7 +330,6 @@ def callback():
 
 @app.route("/buy/<user_id>/<plan_id>")
 def buy(user_id, plan_id):
-    import newebpay_integration
     plans = {
         "point10": {"amount": 100, "desc": "購買 10 次健檢額度點數"},
         "basic_single": {"amount": 120, "desc": "訂閱單月 小資玩家 (15次/月)"},
@@ -338,16 +340,12 @@ def buy(user_id, plan_id):
         return "Invalid Plan", 400
     
     amount = plans[plan_id]["amount"]
-    desc = plans[plan_id]["desc"]
     
-    import uuid
-    import newebpay_integration
-    # MerchantOrderNo 藍新建議 20 碼內英數字
-    order_id = "AAD" + uuid.uuid4().hex[:17]
+    # 產生唯一的訂單編號 (藍新 MerchantOrderNo 限 30 碼內)
+    order_id = "A" + uuid.uuid4().hex[:20]
     
-    # 藍新沒有 CustomField，我們通常把 user_id|plan_id 放在 MerchantOrderNo 
-    # 但為了美觀，藍新建議將自訂資訊放在具名參數中，或是串在 OrderNo 裡
-    # 這裡我們用另一種做法：把資料加密帶進 ItemDesc 或者透過 NotifyURL 帶自訂參數 (藍新 NotifyURL 支援 get 參數)
+    # 將訂單資訊存入資料庫對照表，避免在網址帶參數導致 SHA 驗證失敗
+    database.create_payment_order(order_id, user_id, plan_id)
     
     # 動態取得伺服器域名作為 URL (必須是 HTTPS)
     railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
@@ -356,29 +354,24 @@ def buy(user_id, plan_id):
     else:
         host = request.host_url.rstrip("/")
         
-    # 我們把 user_id 和 plan_id 放在 NotifyURL 的 GET 參數裡，方便解密後直接對應
-    notify_url = f"{host}/newebpay/return?user_id={user_id}&plan_id={plan_id}"
+    notify_url = f"{host}/newebpay/return"
     client_back_url = "line://app" 
     
-    # 電子信箱欄位 (藍新必填，我們用 dummy)
+    # 使用純英文描述避免編碼問題
+    ascii_desc = "Antique_Appraisal_Service"
     email = f"{user_id}@example.com"
     
     html = newebpay_integration.generate_newebpay_form_html(
-        order_id, amount, desc, email, notify_url, client_back_url
+        order_id, amount, ascii_desc, email, notify_url, client_back_url
     )
     return html
 
 @app.route("/newebpay/return", methods=["POST"])
 def newebpay_return():
-    import newebpay_integration
-    import database
-    
-    # 藍新會把結果加密放在 TradeInfo 裡
     trade_info_hex = request.form.get("TradeInfo")
     if not trade_info_hex:
         return "No TradeInfo", 400
         
-    # 解密 TradeInfo
     data = newebpay_integration.decrypt_newebpay_response(
         trade_info_hex, 
         newebpay_integration.HASH_KEY, 
@@ -390,9 +383,13 @@ def newebpay_return():
         
     status = data.get("Status")
     if status == "SUCCESS":
-        # 從 URL 參數取得 user_id 和 plan_id
-        user_id = request.args.get("user_id")
-        plan_id = request.args.get("plan_id")
+        order_id = data.get("MerchantOrderNo")
+        # 從資料庫抓回對應的 user_id 和 plan_id
+        order_info = database.get_payment_order(order_id)
+        
+        if order_info:
+            user_id = order_info['user_id']
+            plan_id = order_info['plan_id']
         
         if user_id and plan_id:
             if plan_id == "point10":

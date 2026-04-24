@@ -34,6 +34,16 @@ def init_db():
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier TEXT DEFAULT 'FREE';")
             # 擴充新欄位: 訂閱到期日
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expiry TEXT;")
+            
+            # 建立支付訂單對照表 (用於藍新 NotifyURL 不帶參數時的對照)
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS payment_orders (
+                    order_id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    plan_id TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
         conn.commit()
         print("Database initialized successfully.")
     except Exception as e:
@@ -199,5 +209,25 @@ def update_subscription(user_id, tier, expiry_str_or_add_months=1):
                     subscription_expiry = EXCLUDED.subscription_expiry
             """, (user_id, tier, expiry_str))
         conn.commit()
+    finally:
+        conn.close()
+
+def create_payment_order(order_id, user_id, plan_id):
+    conn = get_connection()
+    if not conn: return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO payment_orders (order_id, user_id, plan_id) VALUES (%s, %s, %s)", (order_id, user_id, plan_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_payment_order(order_id):
+    conn = get_connection()
+    if not conn: return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT user_id, plan_id FROM payment_orders WHERE order_id = %s", (order_id,))
+            return cur.fetchone()
     finally:
         conn.close()
