@@ -5,9 +5,10 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
 # 藍新測試環境金鑰 (Sandbox)
-MERCHANT_ID = "MS152140417" # 預設測試 ID
-HASH_KEY = "pwFHCqoQZGmho4w6" # 請替換為您的測試 Key
-HASH_IV = "EkRm7iFT261dpevs"  # 請替換為您的測試 IV
+# 注意：以下為手冊範例 ID，若您有自己的測試帳號，請務必替換為您的商店資訊
+MERCHANT_ID = "MS127874575" 
+HASH_KEY = "Fs5cX1TGqYM2PpdbE14a9H83YQSQF5jn" 
+HASH_IV = "C6AcmfqJILwgnhIP"  
 
 # 藍新 MPG 閘道網址 (測試機)
 NEWEBPAY_URL = "https://ccore.newebpay.com/MPG/mpg_gateway"
