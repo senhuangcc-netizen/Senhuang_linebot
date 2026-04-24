@@ -43,23 +43,26 @@ def create_sha256_hash(trade_info, hash_key, hash_iv):
 
 def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, client_back_url):
     """
-    產生藍新支付的自動跳轉表單 (建議使用 Version 2.0 以確保最大相容性)
+    產生藍新支付的自動跳轉表單 (嚴格比照手冊範例排序與參數)
     """
+    # 選用手冊最標準的參數集
     params = {
         "MerchantID": MERCHANT_ID,
-        "RespondType": "JSON",
+        "RespondType": "String", # 改用手冊範例的 String
         "TimeStamp": int(time.time()),
-        "Version": "2.0",  # 改回常用的 2.0 版
+        "Version": "2.0",
         "MerchantOrderNo": order_id,
         "Amt": amount,
         "ItemDesc": item_desc,
         "Email": email,
         "LoginType": 0,
         "NotifyURL": notify_url,
-        "ClientBackURL": client_back_url,
     }
     
-    trade_info = create_aes_encrypt(params, HASH_KEY, HASH_IV)
+    # 強制依照 Key 字母排序 (這在計算簽章/加密時非常重要，能確保跨語言一致性)
+    sorted_params = dict(sorted(params.items()))
+    
+    trade_info = create_aes_encrypt(sorted_params, HASH_KEY, HASH_IV)
     trade_sha = create_sha256_hash(trade_info, HASH_KEY, HASH_IV)
     
     # 產生自提交 HTML 表單
