@@ -18,7 +18,9 @@ def create_aes_encrypt(params_dict, hash_key, hash_iv):
     將參數字典轉成 Query String 後進行 AES 加密 (CBC 模式, PKCS7 Padding)
     """
     # 1. 將字典轉為 Query String
-    url_encoded = urllib.parse.urlencode(params_dict)
+    # 注意：PHP 的 http_build_query 預設使用 RFC 3986 (空格轉為 %20)
+    # Python 的 urlencode 預設會將空格轉為 +，這常導致藍新驗證失敗，需指定 quote_via
+    url_encoded = urllib.parse.urlencode(params_dict, quote_via=urllib.parse.quote)
     
     # 2. PKCS7 Padding (AES 區塊大小為 16 bytes)
     raw_bytes = url_encoded.encode('utf-8')
@@ -41,13 +43,13 @@ def create_sha256_hash(trade_info, hash_key, hash_iv):
 
 def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, client_back_url):
     """
-    產生藍新支付的自動跳轉表單 (依據手冊 NDNF-1.2.2 使用 Version 2.3)
+    產生藍新支付的自動跳轉表單 (建議使用 Version 2.0 以確保最大相容性)
     """
     params = {
         "MerchantID": MERCHANT_ID,
         "RespondType": "JSON",
         "TimeStamp": int(time.time()),
-        "Version": "2.3",  # 依據手冊更新為最新的 2.3
+        "Version": "2.0",  # 改回常用的 2.0 版
         "MerchantOrderNo": order_id,
         "Amt": amount,
         "ItemDesc": item_desc,
@@ -55,7 +57,6 @@ def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, 
         "LoginType": 0,
         "NotifyURL": notify_url,
         "ClientBackURL": client_back_url,
-        "EncryptType": 0,  # 0: AES/CBC, 1: AES/GCM (本專案實作 CBC)
     }
     
     trade_info = create_aes_encrypt(params, HASH_KEY, HASH_IV)
@@ -69,7 +70,7 @@ def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, 
             <input type="hidden" name="MerchantID" value="{MERCHANT_ID}">
             <input type="hidden" name="TradeInfo" value="{trade_info}">
             <input type="hidden" name="TradeSha" value="{trade_sha}">
-            <input type="hidden" name="Version" value="2.3">
+            <input type="hidden" name="Version" value="2.0">
         </form>
         <p>正在引導您至藍新金流支付頁面，請稍候...</p>
     </body>
