@@ -327,6 +327,7 @@ def callback():
 
 @app.route("/buy/<user_id>/<plan_id>")
 def buy(user_id, plan_id):
+    import newebpay_integration
     plans = {
         "point10": {"amount": 100, "desc": "購買 10 次健檢額度點數"},
         "basic_single": {"amount": 120, "desc": "訂閱單月 小資玩家 (15次/月)"},
@@ -340,27 +341,92 @@ def buy(user_id, plan_id):
     desc = plans[plan_id]["desc"]
     
     import uuid
-    import ecpay_integration
-    # MerchantTradeNo 綠界規定必須唯一且最長20碼
+    import newebpay_integration
+    # MerchantOrderNo 藍新建議 20 碼內英數字
     order_id = "AAD" + uuid.uuid4().hex[:17]
     
-    # 將 user_id 和 plan_id 用 "|" 符號裝進 CustomField1 內傳遞給綠界
-    custom_field = f"{user_id}|{plan_id}"
+    # 藍新沒有 CustomField，我們通常把 user_id|plan_id 放在 MerchantOrderNo 
+    # 但為了美觀，藍新建議將自訂資訊放在具名參數中，或是串在 OrderNo 裡
+    # 這裡我們用另一種做法：把資料加密帶進 ItemDesc 或者透過 NotifyURL 帶自訂參數 (藍新 NotifyURL 支援 get 參數)
     
-    # 動態取得伺服器域名作為 Return URL (必須是 HTTPS，否則綠界不會發送 webhook)
+    # 動態取得伺服器域名作為 URL (必須是 HTTPS)
     railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
     if railway_domain:
         host = f"https://{railway_domain}"
     else:
         host = request.host_url.rstrip("/")
         
-    return_url = f"{host}/ecpay/return"
+    # 我們把 user_id 和 plan_id 放在 NotifyURL 的 GET 參數裡，方便解密後直接對應
+    notify_url = f"{host}/newebpay/return?user_id={user_id}&plan_id={plan_id}"
     client_back_url = "line://app" 
     
-    html = ecpay_integration.generate_ecpay_html_form(
-        order_id, custom_field, amount, desc, return_url, client_back_url
+    # 電子信箱欄位 (藍新必填，我們用 dummy)
+    email = f"{user_id}@example.com"
+    
+    html = newebpay_integration.generate_newebpay_form_html(
+        order_id, amount, desc, email, notify_url, client_back_url
     )
     return html
+
+@app.route("/newebpay/return", methods=["POST"])
+def newebpay_return():
+    import newebpay_integration
+    import database
+    
+    # 藍新會把結果加密放在 TradeInfo 裡
+    trade_info_hex = request.form.get("TradeInfo")
+    if not trade_info_hex:
+        return "No TradeInfo", 400
+        
+    # 解密 TradeInfo
+    data = newebpay_integration.decrypt_newebpay_response(
+        trade_info_hex, 
+        newebpay_integration.HASH_KEY, 
+        newebpay_integration.HASH_IV
+    )
+    
+    if not data:
+        return "Decrypt Error", 400
+        
+    status = data.get("Status")
+    if status == "SUCCESS":
+        # 從 URL 參數取得 user_id 和 plan_id
+        user_id = request.args.get("user_id")
+        plan_id = request.args.get("plan_id")
+        
+        if user_id and plan_id:
+            if plan_id == "point10":
+                database.add_purchased_quota(user_id, 10)
+                msg_text = "🎉 [藍新支付] 感謝購買！您的 10 次額度已入帳 (永久有效)。"
+            elif plan_id == "basic_single":
+                database.update_subscription(user_id, "BASIC")
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「小資玩家」，本月擁有 15 次智能健檢！"
+            elif plan_id == "advanced_single":
+                database.update_subscription(user_id, "ADVANCED")
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「進階藏家」，本月擁有 100 次智能健檢！"
+            elif plan_id == "business_single":
+                database.update_subscription(user_id, "BUSINESS")
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「商務旗艦」，本月擁有 1000 次智能健檢！"
+            
+            # 取得最新額度資訊
+            from datetime import datetime
+            now = datetime.now()
+            month_str = f"{now.year}-{now.month:02d}"
+            user_state = database.get_user_status_data(user_id, month_str)
+            free_limit = int(user_state.get('free_limit', 3))
+            usage = int(user_state.get('usage', 0))
+            purchased = int(user_state.get('purchased', 0))
+            tier = user_state.get('tier', 'FREE')
+            
+            rem_free = max(0, free_limit - usage)
+            msg_text += f"\n\n---\n📊 目前最新額度狀態：\n⭐ 會員方案：{tier}\n🎁 當月方案額度剩餘：{rem_free} 次\n🪙 終身可用儲值點數：{purchased} 點"
+            
+            try:
+                line_bot_api.push_message(user_id, TextSendMessage(text=msg_text))
+            except Exception as e:
+                app.logger.error(f"Push message failed: {e}")
+                
+    return "OK"
 
 @app.route("/ecpay/return", methods=["POST"])
 def ecpay_return():
