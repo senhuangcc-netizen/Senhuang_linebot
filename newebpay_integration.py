@@ -11,13 +11,14 @@ HASH_IV = "Cuz9N0Cbfaamhi4P"
 
 # 藍新 MPG 閘道網址 (測試機)
 NEWEBPAY_URL = "https://ccore.newebpay.com/MPG/mpg_gateway"
+# 藍新定期定額網址 (測試機)
+NEWEBPAY_PERIOD_URL = "https://ccore.newebpay.com/MPG/period"
 
 def create_aes_encrypt(params_dict, hash_key, hash_iv):
     """
     將參數字典轉成 Query String 後進行 AES 加密 (CBC 模式, PKCS7 Padding)
-    注意：PHP 的 http_build_query 預設使用 RFC 3986 (空格轉為 %20)
-    Python 的 urlencode 預設會將空格轉為 +，需指定 quote_via 避免 SHA 驗證失敗
     """
+    # PHP 的 http_build_query 預設使用 RFC 3986 
     url_encoded = urllib.parse.urlencode(params_dict, quote_via=urllib.parse.quote)
     raw_bytes = url_encoded.encode('utf-8')
     padded_bytes = pad(raw_bytes, 16)
@@ -36,52 +37,73 @@ def create_sha256_hash(trade_info, hash_key, hash_iv):
 def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, is_period=False):
     """
     產生藍新支付的自動跳轉表單。
-    is_period=True 時，額外注入定期定額參數 (每月扣款，共12期)。
     """
-    params = {
-        "MerchantID": MERCHANT_ID,
-        "RespondType": "String",
-        "TimeStamp": int(time.time()),
-        "Version": "2.0",
-        "MerchantOrderNo": order_id,
-        "Amt": amount,
-        "ItemDesc": item_desc,
-        "Email": email,
-        "LoginType": 0,
-        "NotifyURL": notify_url,
-    }
-
     if is_period:
-        # 定期定額必須指定信用卡 (Credit=1)，否則 MPG 不會導向定期定額綁卡頁
-        params["Credit"] = 1
-        params["PeriodAmt"] = amount        # 每期金額
-        params["PeriodType"] = "M"          # 月扣
-        params["PeriodPoint"] = "01"        # 每月 1 號
-        params["PeriodStartType"] = "2"     # 立即執行委託金額授權
-        params["PeriodTimes"] = "12"        # 共 12 期 (一年)
+        # 定期定額 NPA-B05 規格 (Version 1.5)
+        # 注意：參數名稱與一般 MPG 不同
+        params = {
+            "RespondType": "String",
+            "TimeStamp": int(time.time()),
+            "Version": "1.5",
+            "MerOrderNo": order_id,
+            "ProdDesc": item_desc,
+            "PeriodAmt": amount,
+            "PeriodType": "M",          # 月扣
+            "PeriodPoint": "01",        # 每月 1 號
+            "PeriodStartType": "2",     # 立即執行委託金額授權
+            "PeriodTimes": "12",        # 共 12 期
+            "PayerEmail": email,
+            "NotifyURL": notify_url,
+        }
+        
+        # 定期定額不使用 TradeSha，改用 PostData_ 和 MerchantID_
+        sorted_params = dict(sorted(params.items()))
+        post_data = create_aes_encrypt(sorted_params, HASH_KEY, HASH_IV)
+        
+        form_html = f'''
+        <html>
+        <body onload="document.newebpay_period.submit();">
+            <form name="newebpay_period" method="post" action="{NEWEBPAY_PERIOD_URL}">
+                <input type="hidden" name="MerchantID_" value="{MERCHANT_ID}">
+                <input type="hidden" name="PostData_" value="{post_data}">
+            </form>
+            <p>正在引導您至定期定額支付頁面，請稍候...</p>
+        </body>
+        </html>
+        '''
     else:
-        # 單筆儲值：開放所有支付方式
-        params["Credit"] = 1
-
-    # 強制依照 Key 字母排序確保跨語言一致性
-    sorted_params = dict(sorted(params.items()))
-    
-    trade_info = create_aes_encrypt(sorted_params, HASH_KEY, HASH_IV)
-    trade_sha = create_sha256_hash(trade_info, HASH_KEY, HASH_IV)
-    
-    form_html = f'''
-    <html>
-    <body onload="document.newebpay.submit();">
-        <form name="newebpay" method="post" action="{NEWEBPAY_URL}">
-            <input type="hidden" name="MerchantID" value="{MERCHANT_ID}">
-            <input type="hidden" name="TradeInfo" value="{trade_info}">
-            <input type="hidden" name="TradeSha" value="{trade_sha}">
-            <input type="hidden" name="Version" value="2.0">
-        </form>
-        <p>正在引導您至藍新金流支付頁面，請稍候...</p>
-    </body>
-    </html>
-    '''
+        # 一般單筆 MPG 規格 (Version 2.0)
+        params = {
+            "MerchantID": MERCHANT_ID,
+            "RespondType": "String",
+            "TimeStamp": int(time.time()),
+            "Version": "2.0",
+            "MerchantOrderNo": order_id,
+            "Amt": amount,
+            "ItemDesc": item_desc,
+            "Email": email,
+            "LoginType": 0,
+            "NotifyURL": notify_url,
+            "Credit": 1,
+        }
+        
+        sorted_params = dict(sorted(params.items()))
+        trade_info = create_aes_encrypt(sorted_params, HASH_KEY, HASH_IV)
+        trade_sha = create_sha256_hash(trade_info, HASH_KEY, HASH_IV)
+        
+        form_html = f'''
+        <html>
+        <body onload="document.newebpay.submit();">
+            <form name="newebpay" method="post" action="{NEWEBPAY_URL}">
+                <input type="hidden" name="MerchantID" value="{MERCHANT_ID}">
+                <input type="hidden" name="TradeInfo" value="{trade_info}">
+                <input type="hidden" name="TradeSha" value="{trade_sha}">
+                <input type="hidden" name="Version" value="2.0">
+            </form>
+            <p>正在引導您至藍新金流支付頁面，請稍候...</p>
+        </body>
+        </html>
+        '''
     return form_html
 
 def decrypt_newebpay_response(trade_info_hex, hash_key, hash_iv):
