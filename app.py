@@ -308,6 +308,12 @@ def intro():
     except Exception as e:
         return f"Error loading intro.html: {e}", 404
 
+@app.route("/")
+def index():
+    """首頁服務，回傳 intro.html"""
+    from flask import send_file
+    return send_file("intro.html")
+
 @app.route("/callback", methods=['POST'])
 def callback():
     import threading
