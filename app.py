@@ -151,11 +151,11 @@ def get_subscription_flex(host, user_id):
                 align='center', weight='bold', margin='none'
             ))
         header_items += [
-            TextComponent(text=f'{emoji} {title}', weight='bold', size='xl', color='#ffffff', margin='none' if not recommend else 'sm'),
-            TextComponent(text=tag, size='xxs', color='#ccddcc', margin='xs'),
+            TextComponent(text=f'{emoji} {title}', weight='bold', size='xl', color='#ffffff', align='center', margin='none' if not recommend else 'sm'),
+            TextComponent(text=tag, size='xxs', color='#ccddcc', margin='xs', align='center'),
             SeparatorComponent(color='#88aa88', margin='sm'),
-            TextComponent(text=f'NT$ {price}', size='3xl', weight='bold', color='#ffffff', margin='sm'),
-            TextComponent(text='月費 · 年約定期定額', size='xxs', color='#ccddcc', margin='xs'),
+            TextComponent(text=f'NT$ {price}', size='3xl', weight='bold', color='#ffffff', margin='sm', align='center'),
+            TextComponent(text='月費 · 年約定期定額', size='xxs', color='#ccddcc', margin='xs', align='center'),
         ]
 
         return BubbleContainer(
@@ -200,10 +200,10 @@ def get_subscription_flex(host, user_id):
                 layout='vertical',
                 background_color='#7f8c8d',
                 contents=[
-                    TextComponent(text='🪙 單筆儲值', weight='bold', size='xl', color='#ffffff'),
+                    TextComponent(text='🪙 單筆儲值', weight='bold', size='xl', color='#ffffff', align='center'),
                     SeparatorComponent(color='#aaaaaa', margin='sm'),
-                    TextComponent(text='NT$ 100', size='3xl', weight='bold', color='#ffffff', margin='sm'),
-                    TextComponent(text='10 次 · 永久有效', size='xxs', color='#dddddd', margin='xs'),
+                    TextComponent(text='NT$ 100', size='3xl', weight='bold', color='#ffffff', margin='sm', align='center'),
+                    TextComponent(text='10 次 · 永久有效', size='xxs', color='#dddddd', margin='xs', align='center'),
                 ]
             ),
             body=BoxComponent(
