@@ -152,10 +152,10 @@ def get_subscription_flex(host, user_id):
             ))
         header_items += [
             TextComponent(text=f'{emoji} {title}', weight='bold', size='xl', color='#ffffff', margin='none' if not recommend else 'sm'),
-            TextComponent(text=tag, size='xxs', color='rgba(255,255,255,0.65)', margin='xs'),
-            SeparatorComponent(color='rgba(255,255,255,0.3)', margin='sm'),
+            TextComponent(text=tag, size='xxs', color='#ccddcc', margin='xs'),
+            SeparatorComponent(color='#88aa88', margin='sm'),
             TextComponent(text=f'NT$ {price}', size='3xl', weight='bold', color='#ffffff', margin='sm'),
-            TextComponent(text='月費 · 年約定期定額', size='xxs', color='rgba(255,255,255,0.65)', margin='xs'),
+            TextComponent(text='月費 · 年約定期定額', size='xxs', color='#ccddcc', margin='xs'),
         ]
 
         return BubbleContainer(
@@ -201,9 +201,9 @@ def get_subscription_flex(host, user_id):
                 background_color='#7f8c8d',
                 contents=[
                     TextComponent(text='🪙 單筆儲值', weight='bold', size='xl', color='#ffffff'),
-                    SeparatorComponent(color='rgba(255,255,255,0.3)', margin='sm'),
+                    SeparatorComponent(color='#aaaaaa', margin='sm'),
                     TextComponent(text='NT$ 100', size='3xl', weight='bold', color='#ffffff', margin='sm'),
-                    TextComponent(text='10 次 · 永久有效', size='xxs', color='rgba(255,255,255,0.65)', margin='xs'),
+                    TextComponent(text='10 次 · 永久有效', size='xxs', color='#dddddd', margin='xs'),
                 ]
             ),
             body=BoxComponent(
