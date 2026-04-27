@@ -138,48 +138,176 @@ def get_price_flex():
     )
 
 def get_subscription_flex(host, user_id):
-    """產生包含 ECPay 付款連結的多層級訂閱方案 Flex Message"""
+    """產生高級訂閱方案 Flex Message (定期定額版)"""
     from linebot.models import URIAction, ButtonComponent
-    
-    def make_plan_bubble(color, title, desc1, desc2, price, price_desc, plan_id):
+
+    def make_subscription_bubble(bg_color, badge_color, badge_text, emoji, title, monthly_quota,
+                                  discount_text, price, per_text, plan_id, is_recommended=False):
         payment_url = f"{host}/buy/{user_id}/{plan_id}"
+        contents = []
+
+        if is_recommended:
+            contents.append(BoxComponent(
+                layout='horizontal',
+                contents=[
+                    TextComponent(text='⭐ 最多人選擇', size='xs', color='#ffffff',
+                                  align='center', weight='bold')
+                ],
+                background_color='#e74c3c',
+                padding_all='4px',
+                corner_radius='4px',
+                margin='none'
+            ))
+
+        contents += [
+            BoxComponent(
+                layout='horizontal',
+                margin='sm',
+                contents=[
+                    TextComponent(text=f'{emoji} {title}', weight='bold', size='xl', color='#ffffff', flex=3),
+                    BoxComponent(
+                        layout='vertical',
+                        contents=[TextComponent(text=badge_text, size='xxs', color='#ffffff',
+                                                weight='bold', align='center')],
+                        background_color=badge_color,
+                        padding_all='4px',
+                        corner_radius='20px',
+                        flex=2,
+                        justify_content='center'
+                    )
+                ]
+            ),
+            TextComponent(
+                text=f'NT$ {price}', size='3xl', weight='bold', color='#ffffff', margin='md'
+            ),
+            TextComponent(text=per_text, size='xs', color='rgba(255,255,255,0.7)', margin='none'),
+        ]
+
+        header = BoxComponent(
+            layout='vertical',
+            background_color=bg_color,
+            padding_all='16px',
+            contents=contents
+        )
+
+        body_contents = [
+            BoxComponent(
+                layout='horizontal',
+                contents=[
+                    TextComponent(text='✅', size='sm', flex=0),
+                    TextComponent(text=f'每月 {monthly_quota} 件智能健檢', size='sm',
+                                  color='#333333', margin='sm', flex=1),
+                ]
+            ),
+            BoxComponent(
+                layout='horizontal',
+                margin='sm',
+                contents=[
+                    TextComponent(text='🎁', size='sm', flex=0),
+                    TextComponent(text=discount_text, size='sm', color='#333333', margin='sm',
+                                  flex=1, wrap=True),
+                ]
+            ),
+            BoxComponent(
+                layout='horizontal',
+                margin='sm',
+                contents=[
+                    TextComponent(text='🔄', size='sm', flex=0),
+                    TextComponent(text='信用卡定期定額 · 年約 12 期', size='sm',
+                                  color='#888888', margin='sm', flex=1, wrap=True),
+                ]
+            ),
+        ]
+
         return BubbleContainer(
+            size='kilo',
+            header=header,
+            body=BoxComponent(layout='vertical', padding_all='16px', contents=body_contents,
+                              background_color='#fafafa'),
+            footer=BoxComponent(
+                layout='vertical',
+                padding_all='12px',
+                background_color='#ffffff',
+                contents=[
+                    ButtonComponent(
+                        style='primary',
+                        color=bg_color,
+                        action=URIAction(label='立即訂閱', uri=payment_url),
+                        height='sm'
+                    )
+                ]
+            ),
+            styles={'footer': {'separator': True}}
+        )
+
+    def make_point_bubble(host, user_id):
+        """單筆儲值 (非訂閱) 的卡片"""
+        payment_url = f"{host}/buy/{user_id}/point10"
+        return BubbleContainer(
+            size='kilo',
             header=BoxComponent(
                 layout='vertical',
-                background_color=color,
-                contents=[TextComponent(text=title, weight='bold', size='xl', color='#ffffff')]
+                background_color='#7f8c8d',
+                padding_all='16px',
+                contents=[
+                    TextComponent(text='🪙 單筆儲值', weight='bold', size='xl', color='#ffffff'),
+                    TextComponent(text='NT$ 100', size='3xl', weight='bold', color='#ffffff', margin='md'),
+                    TextComponent(text='10 次 · 永久有效', size='xs', color='rgba(255,255,255,0.7)'),
+                ]
             ),
             body=BoxComponent(
                 layout='vertical',
+                background_color='#fafafa',
+                padding_all='16px',
                 contents=[
-                    TextComponent(text=desc1, weight='bold', size='md', color=color),
-                    TextComponent(text=desc2, size='sm', color='#555555', wrap=True),
-                    SeparatorComponent(margin='md'),
-                    BoxComponent(layout='baseline', margin='md', contents=[
-                        TextComponent(text=price, size='lg', weight='bold', color='#111111', flex=1),
-                        TextComponent(text=price_desc, size='xs', color='#aaaaaa', align='end', flex=1)
+                    BoxComponent(layout='horizontal', contents=[
+                        TextComponent(text='✅', size='sm', flex=0),
+                        TextComponent(text='10 次智能健檢點數', size='sm', color='#333333', margin='sm'),
+                    ]),
+                    BoxComponent(layout='horizontal', margin='sm', contents=[
+                        TextComponent(text='⏳', size='sm', flex=0),
+                        TextComponent(text='永久有效，不會過期', size='sm', color='#333333', margin='sm'),
+                    ]),
+                    BoxComponent(layout='horizontal', margin='sm', contents=[
+                        TextComponent(text='ℹ️', size='sm', flex=0),
+                        TextComponent(text='無人工鑑定折扣', size='sm', color='#aaaaaa', margin='sm'),
                     ]),
                 ]
             ),
             footer=BoxComponent(
                 layout='vertical',
+                padding_all='12px',
+                background_color='#ffffff',
                 contents=[
                     ButtonComponent(
-                        style='primary',
-                        color=color,
-                        action=URIAction(label='前往付款', uri=payment_url)
+                        style='secondary',
+                        action=URIAction(label='單次購買', uri=payment_url),
+                        height='sm'
                     )
                 ]
-            )
+            ),
+            styles={'footer': {'separator': True}}
         )
 
-    b1 = make_plan_bubble('#f39c12', '🪙 單筆儲值', '10 次健檢點數', '永久有效，不會過期', 'NT$ 100', '一次購買', 'point10')
-    b2 = make_plan_bubble('#27ae60', '🌱 小資玩家', '單月 15 次健檢', '人工鑑定單次折 100 元', 'NT$ 120', '買斷30天', 'basic_single')
-    b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '單月 100 次健檢', '人工鑑定單次折 200 元', 'NT$ 500', '買斷30天', 'advanced_single')
-    b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '單月 1000 次', '人工鑑定單次折 300 元', 'NT$ 1500', '買斷30天', 'business_single')
+    b1 = make_subscription_bubble(
+        '#27ae60', '#1a8a4a', '年約訂閱', '🌱', '小資玩家',
+        '15', '人工鑑定折抵 100 元/件', '88', '月費 · 定期定額',
+        'basic_single', is_recommended=False
+    )
+    b2 = make_subscription_bubble(
+        '#2471a3', '#1a5276', '年約訂閱', '👑', '進階藏家',
+        '100', '人工鑑定折抵 200 元/件', '399', '月費 · 定期定額',
+        'advanced_single', is_recommended=True
+    )
+    b3 = make_subscription_bubble(
+        '#6c3483', '#4a235a', '年約訂閱', '💎', '商務旗艦',
+        '1000', '人工鑑定折抵 300 元/件', '1080', '月費 · 定期定額',
+        'business_single', is_recommended=False
+    )
+    b4 = make_point_bubble(host, user_id)
 
     return FlexSendMessage(
-        alt_text="東方森煌館 付費與訂閱方案",
+        alt_text="東方森煌館 訂閱方案",
         contents=CarouselContainer(contents=[b1, b2, b3, b4])
     )
 app = Flask(__name__)
@@ -337,15 +465,17 @@ def callback():
 @app.route("/buy/<user_id>/<plan_id>")
 def buy(user_id, plan_id):
     plans = {
-        "point10": {"amount": 100, "desc": "購買 10 次健檢額度點數"},
-        "basic_single": {"amount": 120, "desc": "訂閱單月 小資玩家 (15次/月)"},
-        "advanced_single": {"amount": 500, "desc": "訂閱單月 進階藏家 (100次/月)"},
-        "business_single": {"amount": 1500, "desc": "訂閱單月 商務旗艦 (1000次/月)"}
+        "point10":        {"amount": 100,  "desc": "Antique_Point_10",   "period": False},
+        "basic_single":   {"amount": 88,   "desc": "Antique_Basic_Sub",  "period": True},
+        "advanced_single":{"amount": 399,  "desc": "Antique_Adv_Sub",    "period": True},
+        "business_single":{"amount": 1080, "desc": "Antique_Biz_Sub",    "period": True},
     }
     if plan_id not in plans:
         return "Invalid Plan", 400
     
     amount = plans[plan_id]["amount"]
+    ascii_desc = plans[plan_id]["desc"]
+    is_period = plans[plan_id]["period"]
     
     # 產生唯一的訂單編號 (藍新 MerchantOrderNo 限 30 碼內)
     order_id = "A" + uuid.uuid4().hex[:20]
@@ -361,14 +491,10 @@ def buy(user_id, plan_id):
         host = request.host_url.rstrip("/")
         
     notify_url = f"{host}/newebpay/return"
-    client_back_url = "line://app" 
-    
-    # 使用純英文描述避免編碼問題
-    ascii_desc = "Antique_Appraisal_Service"
     email = f"{user_id}@example.com"
     
     html = newebpay_integration.generate_newebpay_form_html(
-        order_id, amount, ascii_desc, email, notify_url, client_back_url
+        order_id, amount, ascii_desc, email, notify_url, is_period=is_period
     )
     return html
 

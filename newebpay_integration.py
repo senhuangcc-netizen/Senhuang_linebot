@@ -15,21 +15,14 @@ NEWEBPAY_URL = "https://ccore.newebpay.com/MPG/mpg_gateway"
 def create_aes_encrypt(params_dict, hash_key, hash_iv):
     """
     將參數字典轉成 Query String 後進行 AES 加密 (CBC 模式, PKCS7 Padding)
+    注意：PHP 的 http_build_query 預設使用 RFC 3986 (空格轉為 %20)
+    Python 的 urlencode 預設會將空格轉為 +，需指定 quote_via 避免 SHA 驗證失敗
     """
-    # 1. 將字典轉為 Query String
-    # 注意：PHP 的 http_build_query 預設使用 RFC 3986 (空格轉為 %20)
-    # Python 的 urlencode 預設會將空格轉為 +，這常導致藍新驗證失敗，需指定 quote_via
     url_encoded = urllib.parse.urlencode(params_dict, quote_via=urllib.parse.quote)
-    
-    # 2. PKCS7 Padding (AES 區塊大小為 16 bytes)
     raw_bytes = url_encoded.encode('utf-8')
     padded_bytes = pad(raw_bytes, 16)
-    
-    # 3. AES CBC 加密
     cipher = AES.new(hash_key.encode('utf-8'), AES.MODE_CBC, hash_iv.encode('utf-8'))
     encrypted_bytes = cipher.encrypt(padded_bytes)
-    
-    # 4. 轉為 Hex 字串
     return encrypted_bytes.hex()
 
 def create_sha256_hash(trade_info, hash_key, hash_iv):
@@ -40,14 +33,14 @@ def create_sha256_hash(trade_info, hash_key, hash_iv):
     sha256 = hashlib.sha256(check_string.encode('utf-8')).hexdigest()
     return sha256.upper()
 
-def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, client_back_url):
+def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, is_period=False):
     """
-    產生藍新支付的自動跳轉表單 (嚴格比照手冊範例排序與參數)
+    產生藍新支付的自動跳轉表單。
+    is_period=True 時，額外注入定期定額參數 (每月扣款，共12期)。
     """
-    # 選用手冊最標準的參數集
     params = {
         "MerchantID": MERCHANT_ID,
-        "RespondType": "String", # 改用手冊範例的 String
+        "RespondType": "String",
         "TimeStamp": int(time.time()),
         "Version": "2.0",
         "MerchantOrderNo": order_id,
@@ -57,14 +50,21 @@ def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, 
         "LoginType": 0,
         "NotifyURL": notify_url,
     }
-    
-    # 強制依照 Key 字母排序 (這在計算簽章/加密時非常重要，能確保跨語言一致性)
+
+    if is_period:
+        # 定期定額專用參數 (信用卡年約，每月1號扣款)
+        params["PeriodAmt"] = amount        # 每期金額
+        params["PeriodType"] = "M"          # 月扣
+        params["PeriodPoint"] = "01"        # 每月 1 號
+        params["PeriodStartType"] = "2"     # 立即執行委託金額授權
+        params["PeriodTimes"] = "12"        # 共 12 期 (一年)
+
+    # 強制依照 Key 字母排序確保跨語言一致性
     sorted_params = dict(sorted(params.items()))
     
     trade_info = create_aes_encrypt(sorted_params, HASH_KEY, HASH_IV)
     trade_sha = create_sha256_hash(trade_info, HASH_KEY, HASH_IV)
     
-    # 產生自提交 HTML 表單
     form_html = f'''
     <html>
     <body onload="document.newebpay.submit();">
@@ -85,17 +85,10 @@ def decrypt_newebpay_response(trade_info_hex, hash_key, hash_iv):
     解密藍新回傳的 TradeInfo
     """
     try:
-        # 1. Hex 轉 Bytes
         encrypted_bytes = bytes.fromhex(trade_info_hex)
-        
-        # 2. AES CBC 解密
         cipher = AES.new(hash_key.encode('utf-8'), AES.MODE_CBC, hash_iv.encode('utf-8'))
         decrypted_padded = cipher.decrypt(encrypted_bytes)
-        
-        # 3. PKCS7 Unpadding
         decrypted_bytes = unpad(decrypted_padded, 16)
-        
-        # 4. 解析 Query String 轉回字典
         decrypted_str = decrypted_bytes.decode('utf-8')
         result_params = dict(urllib.parse.parse_qsl(decrypted_str))
         return result_params
