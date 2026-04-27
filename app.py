@@ -12,7 +12,7 @@ try:
 except Exception:
     pass
 
-from flask import Flask, request, abort
+from flask import Flask, request, abort, send_from_directory
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
@@ -439,8 +439,7 @@ def intro():
 @app.route("/")
 def index():
     """首頁服務，回傳 intro.html"""
-    from flask import send_file
-    return send_file("intro.html")
+    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), "intro.html")
 
 @app.route("/callback", methods=['POST'])
 def callback():
