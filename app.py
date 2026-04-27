@@ -560,15 +560,17 @@ def handle_message(event):
         
     buy_keywords = ["購買", "儲值", "點數", "方案", "付費", "訂閱"]
     if any(k in user_msg for k in buy_keywords):
-        # 解決 Flask Context 失效問題 (這是背景執行緒)
         railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
         if railway_domain:
             host = f"https://{railway_domain}"
         else:
-            host = "http://localhost:8080" # 備用
-            
-        flex_msg = get_subscription_flex(host, user_id)
-        line_bot_api.reply_message(event.reply_token, flex_msg)
+            host = "http://localhost:8080"
+        try:
+            flex_msg = get_subscription_flex(host, user_id)
+            line_bot_api.reply_message(event.reply_token, flex_msg)
+        except Exception as e:
+            app.logger.error(f"Flex Message Error: {e}")
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"⚠️ 系統錯誤，請聯繫管理員。\n錯誤訊息: {e}"))
         return
         
     quota_keywords = ["查詢額度", "額度", "我的狀態", "會員狀態"]
