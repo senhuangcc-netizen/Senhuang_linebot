@@ -139,7 +139,7 @@ def get_price_flex():
 
 def get_subscription_flex(host, user_id):
     """高級訂閱方案 Flex Message (SDK v2 相容版)"""
-    from linebot.models import URIAction, ButtonComponent
+    from linebot.models import URIAction, ButtonComponent, MessageAction
 
     def make_sub_bubble(bg_color, accent, emoji, title, tag, quota, discount, price, plan_id, recommend=False):
         payment_url = f"{host}/buy/{user_id}/{plan_id}"
@@ -193,6 +193,11 @@ def get_subscription_flex(host, user_id):
                         style='primary',
                         color=bg_color,
                         action=URIAction(label='立即訂閱', uri=payment_url)
+                    ),
+                    ButtonComponent(
+                        style='secondary',
+                        margin='sm',
+                        action=MessageAction(label='預約送檢 (人工鑑定)', text='預約送檢')
                     )
                 ]
             )
@@ -577,7 +582,18 @@ def handle_message(event):
             app.logger.error(f"Flex Message Error: {e}")
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"⚠️ 系統錯誤，請聯繫管理員。\n錯誤訊息: {e}"))
         return
-        
+
+    if "預約送檢" in user_msg:
+        database.set_user_mode(user_id, "HUMAN")
+        msg = (
+            "✅ 已為您切換至【人工模式】。\n\n"
+            "請點擊下方連結或搜尋 ID 加好友，並發送物件照片與預約訊息：\n"
+            "Line ID: @640aodur\n"
+            "連結: https://line.me/R/ti/p/@640aodur"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+        return
+
     quota_keywords = ["查詢額度", "額度", "我的狀態", "會員狀態"]
     if any(k in user_msg for k in quota_keywords):
         from datetime import datetime
