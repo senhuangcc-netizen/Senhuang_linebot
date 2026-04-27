@@ -52,12 +52,16 @@ def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, 
     }
 
     if is_period:
-        # 定期定額專用參數 (信用卡年約，每月1號扣款)
+        # 定期定額必須指定信用卡 (Credit=1)，否則 MPG 不會導向定期定額綁卡頁
+        params["Credit"] = 1
         params["PeriodAmt"] = amount        # 每期金額
         params["PeriodType"] = "M"          # 月扣
         params["PeriodPoint"] = "01"        # 每月 1 號
         params["PeriodStartType"] = "2"     # 立即執行委託金額授權
         params["PeriodTimes"] = "12"        # 共 12 期 (一年)
+    else:
+        # 單筆儲值：開放所有支付方式
+        params["Credit"] = 1
 
     # 強制依照 Key 字母排序確保跨語言一致性
     sorted_params = dict(sorted(params.items()))

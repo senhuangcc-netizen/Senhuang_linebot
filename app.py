@@ -150,8 +150,13 @@ def get_subscription_flex(host, user_id):
                 text='⭐ 最多人選擇', size='xs', color='#ffffff',
                 align='center', weight='bold', margin='none'
             ))
+        else:
+            # 佔位空行，使價格與進階藏家 (有badge) 水平對齊
+            header_items.append(TextComponent(
+                text=' ', size='xs', color='#00000000', margin='none'
+            ))
         header_items += [
-            TextComponent(text=f'{emoji} {title}', weight='bold', size='xl', color='#ffffff', align='center', margin='none' if not recommend else 'sm'),
+            TextComponent(text=f'{emoji} {title}', weight='bold', size='xl', color='#ffffff', align='center', margin='sm'),
             TextComponent(text=tag, size='xxs', color='#ccddcc', margin='xs', align='center'),
             SeparatorComponent(color='#88aa88', margin='sm'),
             TextComponent(text=f'NT$ {price}', size='3xl', weight='bold', color='#ffffff', margin='sm', align='center'),
