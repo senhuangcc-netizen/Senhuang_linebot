@@ -17,13 +17,16 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, ImageMessage,
-    StickerMessage
+    StickerMessage, ImageSendMessage
 )
 from linebot.models import FlexSendMessage, CarouselContainer, BubbleContainer, BoxComponent, TextComponent, SeparatorComponent
 import google.generativeai as genai
 import uuid
 import database
 import newebpay_integration
+import re
+import json
+import ig_card_generator
 def get_price_flex():
     """產生價目表的 Flex Message 物件"""
     
@@ -138,51 +141,26 @@ def get_price_flex():
     )
 
 def get_subscription_flex(host, user_id):
-    """高級訂閱方案 Flex Message (SDK v2 相容版)"""
-    from linebot.models import URIAction, ButtonComponent, MessageAction
-
-    def make_sub_bubble(bg_color, accent, emoji, title, tag, quota, discount, price, plan_id, recommend=False):
+    """產生包含 ECPay 付款連結的多層級訂閱方案 Flex Message"""
+    from linebot.models import URIAction, ButtonComponent
+    
+    def make_plan_bubble(color, title, desc1, desc2, price, price_desc, plan_id):
         payment_url = f"{host}/buy/{user_id}/{plan_id}"
-        
-        header_items = []
-        if recommend:
-            header_items.append(TextComponent(
-                text='⭐ 最多人選擇', size='xs', color='#ffffff',
-                align='center', weight='bold', margin='none'
-            ))
-        else:
-            # 佔位空行，使價格與進階藏家 (有badge) 水平對齊
-            header_items.append(TextComponent(
-                text=' ', size='xs', color='#00000000', margin='none'
-            ))
-        header_items += [
-            TextComponent(text=f'{emoji} {title}', weight='bold', size='xl', color='#ffffff', align='center', margin='sm'),
-            TextComponent(text=tag, size='xxs', color='#ccddcc', margin='xs', align='center'),
-            SeparatorComponent(color='#88aa88', margin='sm'),
-            TextComponent(text=f'NT$ {price}', size='3xl', weight='bold', color='#ffffff', margin='sm', align='center'),
-            TextComponent(text='月費 · 年約定期定額', size='xxs', color='#ccddcc', margin='xs', align='center'),
-        ]
-
         return BubbleContainer(
             header=BoxComponent(
                 layout='vertical',
-                background_color=bg_color,
-                contents=header_items
+                background_color=color,
+                contents=[TextComponent(text=title, weight='bold', size='xl', color='#ffffff')]
             ),
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    BoxComponent(layout='horizontal', contents=[
-                        TextComponent(text='✅', size='sm', flex=0),
-                        TextComponent(text=f'每月 {quota} 件智能健檢', size='sm', color='#333333', margin='sm', flex=1),
-                    ]),
-                    BoxComponent(layout='horizontal', margin='sm', contents=[
-                        TextComponent(text='🎁', size='sm', flex=0),
-                        TextComponent(text=discount, size='sm', color='#333333', margin='sm', flex=1, wrap=True),
-                    ]),
-                    BoxComponent(layout='horizontal', margin='sm', contents=[
-                        TextComponent(text='🔄', size='sm', flex=0),
-                        TextComponent(text='信用卡定期定額 · 共 12 期', size='sm', color='#999999', margin='sm', flex=1, wrap=True),
+                    TextComponent(text=desc1, weight='bold', size='md', color=color),
+                    TextComponent(text=desc2, size='sm', color='#555555', wrap=True),
+                    SeparatorComponent(margin='md'),
+                    BoxComponent(layout='baseline', margin='md', contents=[
+                        TextComponent(text=price, size='lg', weight='bold', color='#111111', flex=1),
+                        TextComponent(text=price_desc, size='xs', color='#aaaaaa', align='end', flex=1)
                     ]),
                 ]
             ),
@@ -191,70 +169,22 @@ def get_subscription_flex(host, user_id):
                 contents=[
                     ButtonComponent(
                         style='primary',
-                        color=bg_color,
-                        action=URIAction(label='立即訂閱', uri=payment_url)
-                    ),
-                    ButtonComponent(
-                        style='secondary',
-                        margin='sm',
-                        action=MessageAction(label='預約送檢 (人工鑑定)', text='預約送檢')
+                        color=color,
+                        action=URIAction(label='前往付款', uri=payment_url)
                     )
                 ]
             )
         )
 
-    def make_point_bubble(host, user_id):
-        payment_url = f"{host}/buy/{user_id}/point10"
-        return BubbleContainer(
-            header=BoxComponent(
-                layout='vertical',
-                background_color='#7f8c8d',
-                contents=[
-                    TextComponent(text='🪙 單筆儲值', weight='bold', size='xl', color='#ffffff', align='center'),
-                    SeparatorComponent(color='#aaaaaa', margin='sm'),
-                    TextComponent(text='NT$ 100', size='3xl', weight='bold', color='#ffffff', margin='sm', align='center'),
-                    TextComponent(text='10 次 · 永久有效', size='xxs', color='#dddddd', margin='xs', align='center'),
-                ]
-            ),
-            body=BoxComponent(
-                layout='vertical',
-                contents=[
-                    BoxComponent(layout='horizontal', contents=[
-                        TextComponent(text='✅', size='sm', flex=0),
-                        TextComponent(text='10 次智能健檢點數', size='sm', color='#333333', margin='sm'),
-                    ]),
-                    BoxComponent(layout='horizontal', margin='sm', contents=[
-                        TextComponent(text='⏳', size='sm', flex=0),
-                        TextComponent(text='永久有效，不會過期', size='sm', color='#333333', margin='sm'),
-                    ]),
-                    BoxComponent(layout='horizontal', margin='sm', contents=[
-                        TextComponent(text='ℹ️', size='sm', flex=0),
-                        TextComponent(text='無人工鑑定折扣', size='sm', color='#aaaaaa', margin='sm'),
-                    ]),
-                ]
-            ),
-            footer=BoxComponent(
-                layout='vertical',
-                contents=[
-                    ButtonComponent(
-                        style='secondary',
-                        action=URIAction(label='單次購買', uri=payment_url)
-                    )
-                ]
-            )
-        )
-
-    b1 = make_sub_bubble('#27ae60', '#1a8a4a', '🌱', '小資玩家', '年約 · 訂閱方案', '15', '人工鑑定折抵 100 元/件', '88', 'basic_single')
-    b2 = make_sub_bubble('#2471a3', '#1a5276', '👑', '進階藏家', '年約 · 訂閱方案', '100', '人工鑑定折抵 200 元/件', '399', 'advanced_single', recommend=True)
-    b3 = make_sub_bubble('#6c3483', '#4a235a', '💎', '商務旗艦', '年約 · 訂閱方案', '1000', '人工鑑定折抵 300 元/件', '1080', 'business_single')
-    b4 = make_point_bubble(host, user_id)
+    b1 = make_plan_bubble('#f39c12', '🪙 單筆儲值', '10 次健檢點數', '永久有效，不會過期', 'NT$ 100', '一次購買', 'point10')
+    b2 = make_plan_bubble('#27ae60', '🌱 小資玩家', '單月 15 次健檢', '人工鑑定單次折 100 元', 'NT$ 120', '買斷30天', 'basic_single')
+    b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '單月 100 次健檢', '人工鑑定單次折 200 元', 'NT$ 500', '買斷30天', 'advanced_single')
+    b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '單月 1000 次', '人工鑑定單次折 300 元', 'NT$ 1500', '買斷30天', 'business_single')
 
     return FlexSendMessage(
-        alt_text="東方森煌館 訂閱方案",
+        alt_text="東方森煌館 付費與訂閱方案",
         contents=CarouselContainer(contents=[b1, b2, b3, b4])
     )
-
-
 app = Flask(__name__)
 
 from dotenv import load_dotenv
@@ -359,6 +289,9 @@ SYSTEM_PROMPT = """
 
 ## 6. 系統警語（固定輸出，置於篇末）
 「⚠️ 警語：A.D.D. 乃基於 Gemini 全球資料庫以及市場實戰調校，然僅以照片判斷仍有一定誤差。雖優於個人 AI 客觀性，但尚不具備完整鑑定效益，僅供過濾及輔助使用。」
+
+請在回應的最後一行嚴格輸出以下 JSON 標籤供系統繪圖使用（不要加上 Markdown backticks 或其他文字）：
+###DATA:{"title": "青花龍紋花瓶", "prob": "85%", "valuation": "$ 7,000~15,000"}###
 """
 
 model = genai.GenerativeModel(
@@ -381,10 +314,9 @@ def intro():
     except Exception as e:
         return f"Error loading intro.html: {e}", 404
 
-@app.route("/")
-def index():
-    """首頁服務，回傳 intro.html"""
-    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), "intro.html")
+@app.route("/cards/<filename>")
+def serve_card(filename):
+    return send_from_directory("cards", filename)
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -409,17 +341,15 @@ def callback():
 @app.route("/buy/<user_id>/<plan_id>")
 def buy(user_id, plan_id):
     plans = {
-        "point10":        {"amount": 100,  "desc": "Antique_Point_10",   "period": False},
-        "basic_single":   {"amount": 88,   "desc": "Antique_Basic_Sub",  "period": True},
-        "advanced_single":{"amount": 399,  "desc": "Antique_Adv_Sub",    "period": True},
-        "business_single":{"amount": 1080, "desc": "Antique_Biz_Sub",    "period": True},
+        "point10": {"amount": 100, "desc": "購買 10 次健檢額度點數"},
+        "basic_single": {"amount": 120, "desc": "訂閱單月 小資玩家 (15次/月)"},
+        "advanced_single": {"amount": 500, "desc": "訂閱單月 進階藏家 (100次/月)"},
+        "business_single": {"amount": 1500, "desc": "訂閱單月 商務旗艦 (1000次/月)"}
     }
     if plan_id not in plans:
         return "Invalid Plan", 400
     
     amount = plans[plan_id]["amount"]
-    ascii_desc = plans[plan_id]["desc"]
-    is_period = plans[plan_id]["period"]
     
     # 產生唯一的訂單編號 (藍新 MerchantOrderNo 限 30 碼內)
     order_id = "A" + uuid.uuid4().hex[:20]
@@ -435,10 +365,14 @@ def buy(user_id, plan_id):
         host = request.host_url.rstrip("/")
         
     notify_url = f"{host}/newebpay/return"
+    client_back_url = "line://app" 
+    
+    # 使用純英文描述避免編碼問題
+    ascii_desc = "Antique_Appraisal_Service"
     email = f"{user_id}@example.com"
     
     html = newebpay_integration.generate_newebpay_form_html(
-        order_id, amount, ascii_desc, email, notify_url, is_period=is_period
+        order_id, amount, ascii_desc, email, notify_url, client_back_url
     )
     return html
 
@@ -570,30 +504,17 @@ def handle_message(event):
         
     buy_keywords = ["購買", "儲值", "點數", "方案", "付費", "訂閱"]
     if any(k in user_msg for k in buy_keywords):
+        # 解決 Flask Context 失效問題 (這是背景執行緒)
         railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
         if railway_domain:
             host = f"https://{railway_domain}"
         else:
-            host = "http://localhost:8080"
-        try:
-            flex_msg = get_subscription_flex(host, user_id)
-            line_bot_api.reply_message(event.reply_token, flex_msg)
-        except Exception as e:
-            app.logger.error(f"Flex Message Error: {e}")
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"⚠️ 系統錯誤，請聯繫管理員。\n錯誤訊息: {e}"))
+            host = "http://localhost:8080" # 備用
+            
+        flex_msg = get_subscription_flex(host, user_id)
+        line_bot_api.reply_message(event.reply_token, flex_msg)
         return
-
-    if "預約送檢" in user_msg:
-        database.set_user_mode(user_id, "HUMAN")
-        msg = (
-            "✅ 已為您切換至【人工模式】。\n\n"
-            "請點擊下方連結或搜尋 ID 加好友，並發送物件照片與預約訊息：\n"
-            "Line ID: @640aodur\n"
-            "連結: https://line.me/R/ti/p/@640aodur"
-        )
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
-        return
-
+        
     quota_keywords = ["查詢額度", "額度", "我的狀態", "會員狀態"]
     if any(k in user_msg for k in quota_keywords):
         from datetime import datetime
@@ -627,15 +548,12 @@ def handle_message(event):
     # 1. 偵測是否要「切換人工」 (配合你的圖文選單按鈕)
     if user_msg in ["人工預約", "人工客服", "專人服務","真人客服"]:
         database.set_user_mode(user_id, "HUMAN")
-        msg = "👨‍💼 已為您轉接人工預約服務。\n\n請直接留言您的需求，我們會盡快回覆您。\n\n(若需回到 AI 模式，請輸入「開始健檢」)"
+        msg = "👨‍💼 已為您轉接人工預約服務。\n\n請直接留言您的需求，我們會盡快回覆您。\n\n(若需回到 AI 模式，請點擊選單「AI文物健檢」)"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
         return
 
-    current_mode = database.get_user_mode(user_id)
-
     # 2. 偵測是否要「切換回 AI」
-    # 如果是 HUMAN 模式下輸入「開始健檢」，或是輸入其他明確啟動字眼，則啟動 AI 模式
-    if user_msg in ["AI文物健檢", "結束專人", "開啟智能客服"] or (user_msg == "開始健檢" and current_mode == "HUMAN"):
+    elif user_msg in ["AI文物健檢", "結束專人", "開啟智能客服"]:
         database.set_user_mode(user_id, "AI")
         msg = (
             "🤖 歡迎使用【AI文物健檢】服務！\n\n"
@@ -643,13 +561,22 @@ def handle_message(event):
             "⚠️ 【重要提醒】\n"
             "1. AI文物健檢乃基於資料庫與市場資訊，仍有較高誤差值，不具任何鑑定效益，僅供藏家初步過濾使用。\n"
             "2. 單次上傳的照片，請確保只包含「同一件」物件，以免造成AI誤判。\n\n"
-            "照片與文字傳送完畢後，請再次輸入『開始健檢』即可獲得分析報告！"
+            "若AI評估機率較高，建議您後續點選「人工預約」進行實體鑑定！"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
         return
 
-    # 3. 核心邏輯：預設為 HUMAN（靜音）
+    # 3. 核心邏輯：預設為 HUMAN（靜音），需主動點選「AI文物健檢」才啟用 AI
+    current_mode = database.get_user_mode(user_id)
+
     if current_mode == "HUMAN":
+        # 「開始健檢」特例：提示用戶先啟動 AI 服務
+        if user_msg == "開始健檢":
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="⚠️ 請先點選選單中的「AI文物健檢」以啟動服務，再上傳照片並輸入『開始健檢』。")
+            )
+            return
         # 其他訊息：人工模式下完全靜音，讓真人透過 LINE 後台回覆
         print(f"人工模式中，忽略訊息: {user_msg}")
         return
@@ -693,10 +620,45 @@ def handle_message(event):
                 prompt = "請根據這些照片，嚴格依照【AI文物健檢規則與原則】與【Response Format】進行分析。"
                 payload = [prompt] + user_images[user_id]
                 
+                # 抓取第一張上傳的照片 byte data 作為圖卡素材
+                first_image_bytes = None
+                for item in user_images[user_id]:
+                    if isinstance(item, dict) and "data" in item:
+                        first_image_bytes = item["data"]
+                        break
+                        
                 response = model.generate_content(
                     payload,
                     request_options={"timeout": 55}  # 55秒後強制停止，避免 Gunicorn worker 被 SIGKILL
                 )
+                
+                resp_text = response.text
+                title = "古文物珍品"
+                prob = "75%"
+                valuation = "$ 10,000~30,000"
+                
+                # 嘗試找尋 ###DATA:{...}###
+                data_match = re.search(r"###DATA:(\{.*?\})###", resp_text)
+                if data_match:
+                    try:
+                        data_json = json.loads(data_match.group(1))
+                        title = data_json.get("title", title)
+                        prob = data_json.get("prob", prob)
+                        valuation = data_json.get("valuation", valuation)
+                        # 將 DATA 標籤自給用戶顯示的文字中移除
+                        resp_text = resp_text.replace(data_match.group(0), "").strip()
+                    except:
+                        pass
+                else:
+                    # Fallback Regex 解析
+                    prob_m = re.search(r"真品機率評估為：.*?(\d+\s*%)", resp_text)
+                    if prob_m: prob = prob_m.group(1)
+                    title_m = re.search(r"分析為一件[「\[]*(.*?)[」\]]*其當前市場參考價值", resp_text)
+                    if title_m: title = title_m.group(1).strip()
+                    price_m = re.search(r"當前市場參考價值約落在[「\[]*(.*?)[」\]]*[。\n]", resp_text)
+                    if price_m: valuation = price_m.group(1).strip()
+
+                card_filename = ig_card_generator.generate_ig_card(user_id, title, prob, valuation, first_image_bytes)
                 
                 # 清空該用戶的暫存照片
                 user_images[user_id] = []
@@ -705,11 +667,23 @@ def handle_message(event):
                 success, rem_free, rem_purchased = database.consume_quota(user_id, month_str)
                 
                 # 回傳分析結果
-                result_text = response.text + f"\n\n---\n📊 目前剩餘可健檢額度：\n🎁 本月免費/訂閱額度：{rem_free} 次\n🪙 單筆儲值備用點數：{rem_purchased} 點"
-                line_bot_api.push_message(user_id, TextSendMessage(text=result_text))
+                result_text = resp_text + f"\n\n---\n📊 目前剩餘可健檢額度：\n🎁 本月免費/訂閱額度：{rem_free} 次\n🪙 單筆儲值備用點數：{rem_purchased} 點"
                 
-                # 輸出文物健檢報告後，將模式切回 HUMAN
-                database.set_user_mode(user_id, "HUMAN")
+                railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+                if railway_domain:
+                    host_url = f"https://{railway_domain}"
+                else:
+                    host_url = request.host_url.rstrip("/")
+                    
+                card_url = f"{host_url}/cards/{card_filename}"
+                
+                line_bot_api.push_message(
+                    user_id, 
+                    [
+                        TextSendMessage(text=result_text),
+                        ImageSendMessage(original_content_url=card_url, preview_image_url=card_url)
+                    ]
+                )
                 return
                 
             except Exception as e:

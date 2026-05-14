@@ -1,6 +1,6 @@
 # Senhuang Linebot Synchronization Script
 # Source: z:\Senhuang_linebot
-# Destination: C:\Users\Administrator\Desktop\Github\Senhuang_linebot
+# Destination: C:\Users\Administrator\Desktop\Github\Senhuang_linebot2\Senhuang_linebot
 
 $source = "z:\Senhuang_linebot"
 $dest = "C:\Users\Administrator\Desktop\Github\Senhuang_linebot2\Senhuang_linebot"
