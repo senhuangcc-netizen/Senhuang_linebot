@@ -290,7 +290,9 @@ SYSTEM_PROMPT = """
 ## 6. 系統警語（固定輸出，置於篇末）
 「⚠️ 警語：A.D.D. 乃基於 Gemini 全球資料庫以及市場實戰調校，然僅以照片判斷仍有一定誤差。雖優於個人 AI 客觀性，但尚不具備完整鑑定效益，僅供過濾及輔助使用。」
 
-請在回應的最後一行嚴格輸出以下 JSON 標籤供系統繪圖使用（不要加上 Markdown backticks 或其他文字）：
+【重要指令】：
+請你務必先完整輸出上述 1 到 6 的所有文字內容。
+當文字內容完全輸出完畢後，在最後獨立一行嚴格輸出以下 JSON 標籤供系統繪圖使用（不要加上 Markdown backticks 或其他多餘文字）：
 ###DATA:{"title": "青花龍紋花瓶", "prob": "85%", "valuation": "$ 7,000~15,000"}###
 """
 
@@ -642,8 +644,8 @@ def handle_message(event):
                 prob = "75%"
                 valuation = "$ 10,000~30,000"
                 
-                # 嘗試找尋 ###DATA:{...}###
-                data_match = re.search(r"###DATA:(\{.*?\})###", resp_text)
+                # 嘗試找尋 ###DATA:{...}###，支援跨行 JSON
+                data_match = re.search(r"###DATA:\s*(\{.*?\})\s*###", resp_text, re.DOTALL)
                 if data_match:
                     try:
                         data_json = json.loads(data_match.group(1))
