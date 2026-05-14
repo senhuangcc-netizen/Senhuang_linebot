@@ -2,9 +2,10 @@ import os
 import io
 import json
 import uuid
+import math
 from datetime import datetime
 import urllib.request
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 
 # 字型設定 (自動下載 NotoSansTC 確保中文正常顯示)
 FONT_PATH = "NotoSansTC-Bold.otf"
@@ -20,24 +21,56 @@ def get_font(size):
         print(f"Font loading error: {e}")
         return ImageFont.load_default()
 
-def draw_grid(draw, width, height):
-    """繪製 Cyberpunk 科技網格"""
-    grid_color = (0, 255, 255, 25) # 半透明青色
-    step = 20
-    # 左下網格
-    for x in range(0, 250, step):
-        draw.line([(x, 750), (x, height)], fill=grid_color, width=1)
-    for y in range(750, height, step):
-        draw.line([(0, y), (250, y)], fill=grid_color, width=1)
+def draw_gradient_background(width, height):
+    """繪製深色放射狀漸層背景"""
+    base = Image.new('RGBA', (width, height), (10, 15, 30, 255))
+    draw = ImageDraw.Draw(base)
+    
+    # 中心點
+    cx, cy = width // 2, height // 2
+    max_radius = math.hypot(cx, cy)
+    
+    # 畫同心圓來模擬漸層
+    gradient = Image.new('RGBA', (width, height), (0,0,0,0))
+    grad_draw = ImageDraw.Draw(gradient)
+    
+    for r in range(int(max_radius), 0, -10):
+        # 中心亮深藍 (25, 40, 70), 外圍深藍 (10, 15, 30)
+        ratio = r / max_radius
+        c = (
+            int(10 + (25 - 10) * (1 - ratio)),
+            int(15 + (40 - 15) * (1 - ratio)),
+            int(30 + (70 - 30) * (1 - ratio)),
+            255
+        )
+        grad_draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=c)
         
-    # 右下網格
-    for x in range(550, width, step):
-        draw.line([(x, 750), (x, height)], fill=grid_color, width=1)
-    for y in range(750, height, step):
-        draw.line([(550, y), (width, y)], fill=grid_color, width=1)
+    gradient = gradient.filter(ImageFilter.GaussianBlur(20))
+    base.paste(gradient, (0,0), gradient)
+    return base
 
-def create_rounded_rect(width, height, radius, fill_color, border_color, border_width=4):
-    """建立帶有邊框與圓角的透明圖層"""
+def draw_noise(img, intensity=10):
+    """添加微弱雜訊增加質感"""
+    import random
+    noise = Image.new('RGBA', img.size, (0,0,0,0))
+    pixels = noise.load()
+    for y in range(img.height):
+        for x in range(img.width):
+            if random.random() < 0.1: # 只在10%的點加上雜訊
+                val = random.randint(0, intensity)
+                pixels[x, y] = (255, 255, 255, val)
+    return Image.alpha_composite(img, noise)
+
+def draw_dot_grid(draw, width, height):
+    """繪製精緻的點狀網格"""
+    dot_color = (255, 255, 255, 15)
+    step = 30
+    for x in range(0, width, step):
+        for y in range(0, height, step):
+            draw.point((x, y), fill=dot_color)
+
+def create_rounded_rect(width, height, radius, fill_color, border_color, border_width=2, blur_radius=0):
+    """建立帶有邊框與圓角的透明圖層，支援背景模糊模擬"""
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     draw.rounded_rectangle(
@@ -47,97 +80,115 @@ def create_rounded_rect(width, height, radius, fill_color, border_color, border_
         outline=border_color,
         width=border_width
     )
+    if blur_radius > 0:
+         img = img.filter(ImageFilter.GaussianBlur(blur_radius))
     return img
 
 def generate_ig_card(user_id, title, prob, valuation, image_bytes, output_dir="cards"):
     """
-    動態生成 Liquid Glass 風格的 Instagram Profile Card 健檢結果圖
+    動態生成具備高級質感的 Instagram Profile Card
     """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # 1. 建立底圖畫布 (800 x 1000, 科技深藍底)
+    # 1. 建立底圖畫布 (800 x 1000)
     width, height = 800, 1000
-    base_img = Image.new("RGBA", (width, height), (5, 11, 26, 255))
+    base_img = draw_gradient_background(width, height)
+    base_img = draw_noise(base_img, intensity=15)
+    
     draw = ImageDraw.Draw(base_img, "RGBA")
 
-    # 2. 繪製 Cyberpunk 網格背景
-    draw_grid(draw, width, height)
+    # 2. 繪製點狀網格背景
+    draw_dot_grid(draw, width, height)
 
-    # 3. 繪製 Liquid Glass 主外框 (位置: 60, 60 到 740, 620)
-    # 半透明深海藍填充 + 青色發光邊框
-    glass_rect = create_rounded_rect(680, 560, radius=35, fill_color=(15, 43, 72, 190), border_color=(0, 200, 255, 255), border_width=4)
-    base_img.paste(glass_rect, (60, 60), glass_rect)
+    # 3. 繪製高質感毛玻璃主層 (Liquid Glass)
+    # 底部光暈
+    glow = create_rounded_rect(700, 880, radius=40, fill_color=(0, 200, 255, 15), border_color=(0,0,0,0), border_width=0, blur_radius=30)
+    base_img.paste(glow, (50, 60), glow)
+    
+    # 主玻璃板
+    glass_rect = create_rounded_rect(700, 880, radius=40, fill_color=(255, 255, 255, 10), border_color=(255, 255, 255, 40), border_width=2)
+    base_img.paste(glass_rect, (50, 60), glass_rect)
+
+    # 內部裝飾線
+    draw.line([(90, 160), (710, 160)], fill=(255, 255, 255, 30), width=1)
+    draw.line([(90, 750), (710, 750)], fill=(255, 255, 255, 30), width=1)
 
     # 4. 文字寫入設定
-    font_sm = get_font(22)
-    font_md = get_font(28)
-    font_lg = get_font(36)
-    font_xl = get_font(46)
-    font_xxl = get_font(54)
+    font_xs = get_font(18)
+    font_sm = get_font(24)
+    font_md = get_font(30)
+    font_lg = get_font(38)
+    font_xl = get_font(48)
+    font_xxl = get_font(60)
 
-    # 5. 頂部 A.A.D Header 與品名
-    # 置中計算小助手
+    # 5. 頂部 Header 與品名
     def draw_centered_text(draw, text, y, font, color):
         bbox = draw.textbbox((0, 0), text, font=font)
         text_w = bbox[2] - bbox[0]
         draw.text(((width - text_w) // 2, y), text, font=font, fill=color)
 
-    draw_centered_text(draw, "A.A.D", 90, font_xxl, (0, 255, 255, 255))
-    draw_centered_text(draw, title, 170, font_xl, (255, 255, 255, 255))
+    # 標題區
+    draw_centered_text(draw, "A.A.D SYSTEM", 85, font_sm, (0, 255, 255, 200))
+    draw_centered_text(draw, "AI ANTIQUE DIAGNOSIS", 125, font_xs, (255, 255, 255, 120))
+    
+    # 品名區
+    draw_centered_text(draw, title, 200, font_xl, (255, 255, 255, 255))
 
-    # 6. Authenticity 機率框
-    auth_text = f"AUTHENTICITY : {prob}"
-    auth_rect = create_rounded_rect(560, 100, radius=15, fill_color=(0, 150, 255, 50), border_color=(0, 255, 255, 255), border_width=3)
-    base_img.paste(auth_rect, (120, 260), auth_rect)
-    draw_centered_text(draw, auth_text, 280, font_lg, (0, 255, 255, 255))
+    # 6. 機率框 (質感提升)
+    auth_rect = create_rounded_rect(580, 100, radius=20, fill_color=(0, 255, 255, 15), border_color=(0, 255, 255, 80), border_width=2)
+    base_img.paste(auth_rect, (110, 300), auth_rect)
+    
+    auth_label = "AUTHENTICITY MATCH"
+    bbox = draw.textbbox((0, 0), auth_label, font=font_sm)
+    draw.text((150, 335), auth_label, font=font_sm, fill=(255, 255, 255, 200))
+    
+    draw.text((480, 320), prob, font=font_xxl, fill=(0, 255, 255, 255))
 
-    # 7. 圓形文物照片遮罩處理 (放置於左中下 80, 420)
-    circle_size = 400
+    # 7. 圓形文物照片
+    circle_size = 280
     try:
         if image_bytes:
             user_photo = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
         else:
             user_photo = Image.new("RGBA", (circle_size, circle_size), (40, 40, 40, 255))
             
-        # 縮放裁剪成正方形
         w, h = user_photo.size
         min_dim = min(w, h)
         user_photo = user_photo.crop(((w - min_dim) // 2, (h - min_dim) // 2, (w + min_dim) // 2, (h + min_dim) // 2))
         user_photo = user_photo.resize((circle_size, circle_size), Image.Resampling.LANCZOS)
         
-        # 建立圓形遮罩
         mask = Image.new("L", (circle_size, circle_size), 0)
         mask_draw = ImageDraw.Draw(mask)
         mask_draw.ellipse((0, 0, circle_size, circle_size), fill=255)
         
-        # 套用遮罩並貼上
         circle_img = Image.new("RGBA", (circle_size, circle_size), (0, 0, 0, 0))
         circle_img.paste(user_photo, (0, 0), mask)
-        base_img.paste(circle_img, (80, 420), circle_img)
+        base_img.paste(circle_img, (110, 440), circle_img)
+        
+        # 繪製照片光暈與邊框
+        draw.ellipse([(108, 438), (110 + circle_size + 2, 440 + circle_size + 2)], outline=(255, 255, 255, 100), width=4)
+        draw.ellipse([(100, 430), (110 + circle_size + 10, 440 + circle_size + 10)], outline=(0, 255, 255, 50), width=1)
+        
     except Exception as e:
         print(f"User image process error: {e}")
 
-    # 繪製圓形青色邊框
-    draw.ellipse([(76, 416), (80 + circle_size + 4, 420 + circle_size + 4)], outline=(0, 255, 255, 255), width=8)
-
-    # 8. 操作者資訊 (右側)
-    draw.text((510, 580), "VIP 藏家", font=font_lg, fill=(255, 255, 255, 255))
-    draw.text((510, 630), "健檢操作者", font=font_md, fill=(0, 170, 255, 255))
-
-    # 9. 底部資訊欄
-    # 日期
+    # 8. 資訊標籤 (放置於照片右側)
+    info_x = 440
+    draw.text((info_x, 460), "CLIENT LEVEL", font=font_xs, fill=(255, 255, 255, 120))
+    draw.text((info_x, 485), "VIP Collector", font=font_md, fill=(212, 175, 55, 255)) # 金色
+    
     date_str = datetime.now().strftime("%d %b %Y").upper()
-    draw.text((80, 860), date_str, font=font_md, fill=(255, 255, 255, 255))
-    draw.text((80, 905), "Ai Antique Diagnosis", font=font_sm, fill=(136, 170, 170, 255))
+    draw.text((info_x, 560), "DIAGNOSIS DATE", font=font_xs, fill=(255, 255, 255, 120))
+    draw.text((info_x, 585), date_str, font=font_md, fill=(255, 255, 255, 255))
 
-    # 箭頭符號
-    draw.text((360, 860), ">>>>", font=font_lg, fill=(0, 255, 255, 255))
+    draw.text((info_x, 660), "REPORT ID", font=font_xs, fill=(255, 255, 255, 120))
+    draw.text((info_x, 685), f"#{uuid.uuid4().hex[:8].upper()}", font=font_md, fill=(0, 255, 255, 255))
 
-    # 估值
-    draw.text((510, 820), "Price Valuation", font=font_md, fill=(255, 255, 255, 255))
-    draw.text((510, 860), valuation, font=font_lg, fill=(0, 255, 255, 255))
-    draw.text((510, 905), "若為真品之估值", font=font_sm, fill=(0, 170, 255, 255))
+    # 9. 底部估值區
+    draw_centered_text(draw, "MARKET VALUATION", 780, font_sm, (255, 255, 255, 150))
+    draw_centered_text(draw, valuation, 820, font_xl, (212, 175, 55, 255)) # 高貴金色
+    draw_centered_text(draw, "* Estimated value if confirmed authentic by physical inspection", 890, font_xs, (255, 255, 255, 80))
 
     # 10. 存檔回傳
     card_filename = f"card_{uuid.uuid4().hex[:12]}.png"
