@@ -627,12 +627,15 @@ def handle_message(event):
     # 1. 偵測是否要「切換人工」 (配合你的圖文選單按鈕)
     if user_msg in ["人工預約", "人工客服", "專人服務","真人客服"]:
         database.set_user_mode(user_id, "HUMAN")
-        msg = "👨‍💼 已為您轉接人工預約服務。\n\n請直接留言您的需求，我們會盡快回覆您。\n\n(若需回到 AI 模式，請點擊選單「AI文物健檢」)"
+        msg = "👨‍💼 已為您轉接人工預約服務。\n\n請直接留言您的需求，我們會盡快回覆您。\n\n(若需回到 AI 模式，請輸入「開始健檢」)"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
         return
 
+    current_mode = database.get_user_mode(user_id)
+
     # 2. 偵測是否要「切換回 AI」
-    elif user_msg in ["AI文物健檢", "結束專人", "開啟智能客服"]:
+    # 如果是 HUMAN 模式下輸入「開始健檢」，或是輸入其他明確啟動字眼，則啟動 AI 模式
+    if user_msg in ["AI文物健檢", "結束專人", "開啟智能客服"] or (user_msg == "開始健檢" and current_mode == "HUMAN"):
         database.set_user_mode(user_id, "AI")
         msg = (
             "🤖 歡迎使用【AI文物健檢】服務！\n\n"
@@ -640,22 +643,13 @@ def handle_message(event):
             "⚠️ 【重要提醒】\n"
             "1. AI文物健檢乃基於資料庫與市場資訊，仍有較高誤差值，不具任何鑑定效益，僅供藏家初步過濾使用。\n"
             "2. 單次上傳的照片，請確保只包含「同一件」物件，以免造成AI誤判。\n\n"
-            "若AI評估機率較高，建議您後續點選「人工預約」進行實體鑑定！"
+            "照片與文字傳送完畢後，請再次輸入『開始健檢』即可獲得分析報告！"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
         return
 
-    # 3. 核心邏輯：預設為 HUMAN（靜音），需主動點選「AI文物健檢」才啟用 AI
-    current_mode = database.get_user_mode(user_id)
-
+    # 3. 核心邏輯：預設為 HUMAN（靜音）
     if current_mode == "HUMAN":
-        # 「開始健檢」特例：提示用戶先啟動 AI 服務
-        if user_msg == "開始健檢":
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="⚠️ 請先點選選單中的「AI文物健檢」以啟動服務，再上傳照片並輸入『開始健檢』。")
-            )
-            return
         # 其他訊息：人工模式下完全靜音，讓真人透過 LINE 後台回覆
         print(f"人工模式中，忽略訊息: {user_msg}")
         return
@@ -713,6 +707,9 @@ def handle_message(event):
                 # 回傳分析結果
                 result_text = response.text + f"\n\n---\n📊 目前剩餘可健檢額度：\n🎁 本月免費/訂閱額度：{rem_free} 次\n🪙 單筆儲值備用點數：{rem_purchased} 點"
                 line_bot_api.push_message(user_id, TextSendMessage(text=result_text))
+                
+                # 輸出文物健檢報告後，將模式切回 HUMAN
+                database.set_user_mode(user_id, "HUMAN")
                 return
                 
             except Exception as e:
