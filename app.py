@@ -314,6 +314,11 @@ def intro():
     except Exception as e:
         return f"Error loading intro.html: {e}", 404
 
+@app.route("/")
+def index():
+    """首頁服務，回傳 intro.html"""
+    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), "intro.html")
+
 @app.route("/cards/<filename>")
 def serve_card(filename):
     return send_from_directory("cards", filename)
@@ -684,6 +689,9 @@ def handle_message(event):
                         ImageSendMessage(original_content_url=card_url, preview_image_url=card_url)
                     ]
                 )
+                
+                # 輸出文物健檢報告後，將模式切回 HUMAN
+                database.set_user_mode(user_id, "HUMAN")
                 return
                 
             except Exception as e:
