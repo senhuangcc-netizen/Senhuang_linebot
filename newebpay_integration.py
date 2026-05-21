@@ -44,11 +44,11 @@ def create_sha256_hash(trade_info, hash_key, hash_iv):
 def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, client_back_url):
     """
     產生藍新支付的自動跳轉表單 (嚴格比照手冊範例排序與參數)
+    手冊規定：MerchantID 只放表單外層，不加密進 TradeInfo
     """
-    # 選用手冊最標準的參數集
+    # 依手冊規範：TradeInfo 只包含交易參數，MerchantID 不納入加密
     params = {
-        "MerchantID": MERCHANT_ID,
-        "RespondType": "String", # 改用手冊範例的 String
+        "RespondType": "JSON",
         "TimeStamp": int(time.time()),
         "Version": "2.0",
         "MerchantOrderNo": order_id,
@@ -60,11 +60,23 @@ def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, 
         "ClientBackURL": client_back_url,
     }
     
-    # 強制依照 Key 字母排序 (這在計算簽章/加密時非常重要，能確保跨語言一致性)
+    # 強制依照 Key 字母排序
     sorted_params = dict(sorted(params.items()))
     
+    # DEBUG LOG：印出加密前的原始字串，方便在 Railway 確認內容
+    import urllib.parse as _up
+    raw_query = _up.urlencode(sorted_params, quote_via=_up.quote)
+    print(f"[NewebPay DEBUG] Raw TradeInfo string: {raw_query}")
+    
     trade_info = create_aes_encrypt(sorted_params, HASH_KEY, HASH_IV)
+    
+    # DEBUG LOG：印出 TradeSha 計算字串
+    check_string = f"HashKey={HASH_KEY}&TradeInfo={trade_info}&HashIV={HASH_IV}"
+    print(f"[NewebPay DEBUG] SHA256 check_string length: {len(check_string)}")
+    print(f"[NewebPay DEBUG] TradeInfo (hex): {trade_info[:40]}...")
+    
     trade_sha = create_sha256_hash(trade_info, HASH_KEY, HASH_IV)
+    print(f"[NewebPay DEBUG] TradeSha: {trade_sha}")
     
     # 產生自提交 HTML 表單
     form_html = f'''
