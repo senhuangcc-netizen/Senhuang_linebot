@@ -322,7 +322,7 @@ def serve_card(filename):
 def sha256_test():
     """
     診斷端點：使用藍新官方測試金鑰驗證 SHA256 演算法是否正確
-    測試金鑰來自藍新手冊 / 測試商店
+    測試金鑰與演算法嚴格遵循藍新金流技術手冊
     """
     import newebpay_integration, urllib.parse, hashlib
     
@@ -331,8 +331,9 @@ def sha256_test():
     TEST_IV  = "C6AcmfqJILwgnhIP"
     TEST_MID = "MS127874575"
     
-    # 固定測試參數（timestamp 固定，方便重複驗算）
+    # 固定測試參數（timestamp 固定，且內含 MerchantID 商店代號）
     params = {
+        "MerchantID": TEST_MID,
         "RespondType": "JSON",
         "TimeStamp": "1485232229",
         "Version": "2.0",
@@ -347,7 +348,9 @@ def sha256_test():
     sorted_params = dict(sorted(params.items()))
     raw_query = urllib.parse.urlencode(sorted_params, quote_via=urllib.parse.quote)
     trade_info = newebpay_integration.create_aes_encrypt(sorted_params, TEST_KEY, TEST_IV)
-    check_string = f"HashKey={TEST_KEY}&TradeInfo={trade_info}&HashIV={TEST_IV}"
+    
+    # 遵循手冊規範：HashKey=xxx&[trade_info_hex]&HashIV=xxx (無 TradeInfo=)
+    check_string = f"HashKey={TEST_KEY}&{trade_info}&HashIV={TEST_IV}"
     trade_sha = hashlib.sha256(check_string.encode('utf-8')).hexdigest().upper()
     
     # 正式金鑰的長度確認
@@ -384,7 +387,10 @@ def buy_preview(user_id, plan_id):
     host = f"https://{railway_domain}" if railway_domain else request.host_url.rstrip("/")
     import newebpay_integration as nb
     import urllib.parse as _up
+    
+    # 內含 MerchantID 且外層也有
     params = {
+        "MerchantID": nb.MERCHANT_ID,
         "RespondType": "JSON",
         "TimeStamp": int(__import__('time').time()),
         "Version": "2.0",
