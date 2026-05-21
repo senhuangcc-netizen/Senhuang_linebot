@@ -659,7 +659,17 @@ def handle_message(event):
                     price_m = re.search(r"當前市場參考價值約落在[「\[]*(.*?)[」\]]*[。\n]", resp_text)
                     if price_m: valuation = price_m.group(1).strip()
 
-                card_filename = ig_card_generator.generate_ig_card(user_id, title, prob, valuation, first_image_bytes)
+                # 獲取使用者 LINE 暱稱作為健檢操作者
+                display_name = "VIP 藏家"
+                try:
+                    profile = line_bot_api.get_profile(user_id)
+                    display_name = profile.display_name
+                except Exception as e:
+                    app.logger.warning(f"Failed to fetch LINE profile display name: {e}")
+
+                card_filename = ig_card_generator.generate_ig_card(
+                    user_id, title, prob, valuation, first_image_bytes, user_name=display_name
+                )
                 
                 # 清空該用戶的暫存照片
                 user_images[user_id] = []
