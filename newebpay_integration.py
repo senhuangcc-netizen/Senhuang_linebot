@@ -5,10 +5,10 @@ import urllib.parse
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-# 藍新正式環境金鑰（從 Railway 環境變數讀取，切勿寫死在程式碼中）
-MERCHANT_ID = os.getenv("MERCHANT_ID")
-HASH_KEY = os.getenv("HASH_KEY")
-HASH_IV = os.getenv("HASH_IV")
+# 藍新正式環境金鑰（從 Railway 環境變數讀取，.strip() 去除可能的空白字元）
+MERCHANT_ID = (os.getenv("MERCHANT_ID") or "").strip()
+HASH_KEY = (os.getenv("HASH_KEY") or "").strip()
+HASH_IV = (os.getenv("HASH_IV") or "").strip()
 
 # 藍新 MPG 閘道網址（正式環境：core，測試環境：ccore）
 NEWEBPAY_URL = "https://core.newebpay.com/MPG/mpg_gateway"
@@ -67,6 +67,11 @@ def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, 
     import urllib.parse as _up
     raw_query = _up.urlencode(sorted_params, quote_via=_up.quote)
     print(f"[NewebPay DEBUG] Raw TradeInfo string: {raw_query}")
+    
+    # DEBUG LOG：驗證 KEY 長度和頭尾字元（不暴露完整金鑰）
+    print(f"[NewebPay DEBUG] MERCHANT_ID: {MERCHANT_ID}")
+    print(f"[NewebPay DEBUG] HASH_KEY len={len(HASH_KEY)}, first4={HASH_KEY[:4]!r}, last4={HASH_KEY[-4:]!r}")
+    print(f"[NewebPay DEBUG] HASH_IV  len={len(HASH_IV)}, first4={HASH_IV[:4]!r}, last4={HASH_IV[-4:]!r}")
     
     trade_info = create_aes_encrypt(sorted_params, HASH_KEY, HASH_IV)
     
