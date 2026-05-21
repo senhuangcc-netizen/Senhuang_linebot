@@ -176,10 +176,10 @@ def get_subscription_flex(host, user_id):
             )
         )
 
-    b1 = make_plan_bubble('#7f8c8d', '🪙 單筆儲值', '10 次，永久有效', '無人工鑑定折扣', 'NT$ 100', '單次購買', 'point10')
-    b2 = make_plan_bubble('#27ae60', '🌱 小資玩家', '每月 15 件智能健檢', '人工鑑定折抵 100 元/件', 'NT$ 88', '月費，年約共12期', 'basic_single')
-    b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '每月 100 件智能健檢', '人工鑑定折抵 200 元/件', 'NT$ 399', '月費，年約共12期', 'advanced_single')
-    b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '每月 1000 件智能健檢', '人工鑑定折抵 300 元/件', 'NT$ 1080', '月費，年約共12期', 'business_single')
+    b1 = make_plan_bubble('#7f8c8d', '🪙 單筆儲值', '10 次，永久有效', '無實體送檢折抵', 'NT$ 100', '單次購買', 'point10')
+    b2 = make_plan_bubble('#27ae60', '🌱 小資玩家', '每月 15 件智能健檢', '實體送檢折抵100元/件', 'NT$ 88', '月費，年約共12期', 'basic_single')
+    b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '每月 100 件智能健檢', '實體送檢折抵300元/件', 'NT$ 399', '月費，年約共12期', 'advanced_single')
+    b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '每月 1000 件智能健檢', '實體送檢折抵500元/件', 'NT$ 1080', '月費，年約共12期', 'business_single')
 
     return FlexSendMessage(
         alt_text="東方森煌館 付費與訂閱方案",
