@@ -176,10 +176,10 @@ def get_subscription_flex(host, user_id):
             )
         )
 
-    b1 = make_plan_bubble('#f39c12', '🪙 單筆儲值', '10 次健檢點數', '永久有效，不會過期', 'NT$ 100', '一次購買', 'point10')
-    b2 = make_plan_bubble('#27ae60', '🌱 小資玩家', '單月 15 次健檢', '人工鑑定單次折 100 元', 'NT$ 120', '買斷30天', 'basic_single')
-    b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '單月 100 次健檢', '人工鑑定單次折 200 元', 'NT$ 500', '買斷30天', 'advanced_single')
-    b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '單月 1000 次', '人工鑑定單次折 300 元', 'NT$ 1500', '買斷30天', 'business_single')
+    b1 = make_plan_bubble('#7f8c8d', '🪙 單筆儲值', '10 次，永久有效', '無人工鑑定折扣', 'NT$ 100', '單次購買', 'point10')
+    b2 = make_plan_bubble('#27ae60', '🌱 小資玩家', '每月 15 件智能健檢', '人工鑑定折抵 100 元/件', 'NT$ 88', '月費，年約共12期', 'basic_single')
+    b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '每月 100 件智能健檢', '人工鑑定折抵 200 元/件', 'NT$ 399', '月費，年約共12期', 'advanced_single')
+    b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '每月 1000 件智能健檢', '人工鑑定折抵 300 元/件', 'NT$ 1080', '月費，年約共12期', 'business_single')
 
     return FlexSendMessage(
         alt_text="東方森煌館 付費與訂閱方案",
@@ -343,9 +343,9 @@ def callback():
 def buy(user_id, plan_id):
     plans = {
         "point10": {"amount": 100, "desc": "購買 10 次健檢額度點數"},
-        "basic_single": {"amount": 120, "desc": "訂閱單月 小資玩家 (15次/月)"},
-        "advanced_single": {"amount": 500, "desc": "訂閱單月 進階藏家 (100次/月)"},
-        "business_single": {"amount": 1500, "desc": "訂閱單月 商務旗艦 (1000次/月)"}
+        "basic_single": {"amount": 88, "desc": "小資玩家 年約月繳定期定額 (15次/月)"},
+        "advanced_single": {"amount": 399, "desc": "進階藏家 年約月繳定期定額 (100次/月)"},
+        "business_single": {"amount": 1080, "desc": "商務旗艦 年約月繳定期定額 (1000次/月)"}
     }
     if plan_id not in plans:
         return "Invalid Plan", 400
@@ -414,13 +414,13 @@ def newebpay_return():
                 msg_text = "🎉 [藍新支付] 感謝購買！您的 10 次額度已入帳 (永久有效)。"
             elif plan_id == "basic_single":
                 database.update_subscription(user_id, "BASIC")
-                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「小資玩家」，本月擁有 15 次智能健檢！"
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「小資玩家」年約定期定額方案，本月已開通 15 次智能健檢！"
             elif plan_id == "advanced_single":
                 database.update_subscription(user_id, "ADVANCED")
-                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「進階藏家」，本月擁有 100 次智能健檢！"
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「進階藏家」年約定期定額方案，本月已開通 100 次智能健檢！"
             elif plan_id == "business_single":
                 database.update_subscription(user_id, "BUSINESS")
-                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「商務旗艦」，本月擁有 1000 次智能健檢！"
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「商務旗艦」年約定期定額方案，本月已開通 1000 次智能健檢！"
             
             # 取得最新額度資訊
             from datetime import datetime
