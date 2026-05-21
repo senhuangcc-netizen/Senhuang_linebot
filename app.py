@@ -388,7 +388,7 @@ def buy_preview(user_id, plan_id):
     import newebpay_integration as nb
     import urllib.parse as _up
     
-    # 內含 MerchantID 且外層也有
+    # 內含 MerchantID 且外層也有，使用安全 ASCII 電子信箱避免 MPG01013
     params = {
         "MerchantID": nb.MERCHANT_ID,
         "RespondType": "JSON",
@@ -397,7 +397,7 @@ def buy_preview(user_id, plan_id):
         "MerchantOrderNo": order_id,
         "Amt": plans[plan_id]["amount"],
         "ItemDesc": plans[plan_id]["desc"],
-        "Email": f"{user_id}@example.com",
+        "Email": "test_user@example.com",
         "LoginType": 0,
         "NotifyURL": f"{host}/newebpay/return",
         "ClientBackURL": "line://app",
