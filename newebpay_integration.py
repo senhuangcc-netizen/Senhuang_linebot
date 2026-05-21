@@ -100,6 +100,85 @@ def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, 
     '''
     return form_html
 
+def generate_newebpay_period_form_html(order_id, amount, desc, email, notify_url, client_back_url):
+    """
+    產生藍新定期定額 (Credit Card Periodical Payment NPA-B05) 的自提交 HTML 表單
+    """
+    from datetime import datetime
+    
+    # 扣款日期：設定為當前月份的今日，例如今日是 21 號，就設定每月 21 號扣款
+    today_day = datetime.now().day
+    period_point = f"{today_day:02d}"
+    
+    # 依照定期定額手冊規範的參數格式
+    params = {
+        "RespondType": "JSON",
+        "TimeStamp": int(time.time()),
+        "Version": "1.5",
+        "LangType": "zh-Tw",
+        "MerOrderNo": order_id,
+        "ProdDesc": desc,
+        "PeriodAmt": int(amount),
+        "PeriodType": "M",          # M = 每月扣款
+        "PeriodPoint": period_point, # 每月扣款日期 (01~31)
+        "PeriodStartType": 2,       # 2 = 立即執行首期委託金額授權
+        "PeriodTimes": 99,          # 委託授權總期數 (99 期)
+        "PayerEmail": email,
+        "PaymentInfo": "Y",         # 顯示付款人姓名、電話、手機等欄位
+        "OrderInfo": "N",           # 不顯示收件人資訊欄位
+        "EmailModify": 1,           # 允許付款人修改電子信箱
+        "NotifyURL": notify_url,    # 每期授權結果通知網址 (幕後 Post)
+        "ReturnURL": client_back_url # 首次扣款成功後，Form Post 導回商店頁面
+    }
+    
+    # 強制依照 Key 字母排序以進行加密
+    sorted_params = dict(sorted(params.items()))
+    
+    # 進行 AES256 加密
+    post_data = create_aes_encrypt(sorted_params, HASH_KEY, HASH_IV)
+    
+    # 定期定額 API 傳送端點
+    gateway_url = NEWEBPAY_URL.replace("mpg_gateway", "period")
+    
+    form_html = f'''
+    <html>
+    <body onload="document.newebpay_period.submit();">
+        <form name="newebpay_period" method="post" action="{gateway_url}">
+            <input type="hidden" name="MerchantID_" value="{MERCHANT_ID}">
+            <input type="hidden" name="PostData_" value="{post_data}">
+        </form>
+        <p>正在引導您至藍新定期定額安全支付頁面，請稍候...</p>
+    </body>
+    </html>
+    '''
+    return form_html
+
+def decrypt_newebpay_period_response(period_hex, hash_key, hash_iv):
+    """
+    解密藍新定期定額回傳的 Period 密文
+    """
+    import json
+    try:
+        # 1. Hex 轉 Bytes
+        encrypted_bytes = bytes.fromhex(period_hex)
+        
+        # 2. AES CBC 解密
+        cipher = AES.new(hash_key.encode('utf-8'), AES.MODE_CBC, hash_iv.encode('utf-8'))
+        decrypted_padded = cipher.decrypt(encrypted_bytes)
+        
+        # 3. PKCS7 Unpadding
+        decrypted_bytes = unpad(decrypted_padded, 16)
+        decrypted_str = decrypted_bytes.decode('utf-8')
+        
+        # 4. 嘗試以 JSON 解析，若失敗則回歸 Query String 解析
+        try:
+            return json.loads(decrypted_str)
+        except Exception:
+            return dict(urllib.parse.parse_qsl(decrypted_str))
+    except Exception as e:
+        print(f"NewebPay Period Decrypt Error: {e}")
+        return None
+
 def decrypt_newebpay_response(trade_info_hex, hash_key, hash_iv):
     """
     解密藍新回傳的 TradeInfo

@@ -365,16 +365,22 @@ def buy(user_id, plan_id):
     else:
         host = request.host_url.rstrip("/")
         
-    notify_url = f"{host}/newebpay/return"
+    notify_url = f"{host}/newebpay/period_return" if plan_id != "point10" else f"{host}/newebpay/return"
     client_back_url = f"{host}/intro" 
     
     # 使用純英文描述避免編碼問題
     ascii_desc = "Antique_Appraisal_Service"
     email = f"{user_id}@example.com"
     
-    html = newebpay_integration.generate_newebpay_form_html(
-        order_id, amount, ascii_desc, email, notify_url, client_back_url
-    )
+    if plan_id == "point10":
+        html = newebpay_integration.generate_newebpay_form_html(
+            order_id, amount, ascii_desc, email, notify_url, client_back_url
+        )
+    else:
+        # 定期定額訂閱使用 NPA-B05 專用端點與加密
+        html = newebpay_integration.generate_newebpay_period_form_html(
+            order_id, amount, plans[plan_id]["desc"], email, notify_url, client_back_url
+        )
     return html
 
 @app.route("/newebpay/return", methods=["POST"])
@@ -416,6 +422,68 @@ def newebpay_return():
                 database.update_subscription(user_id, "BUSINESS")
                 msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「商務旗艦」，本月擁有 1000 次智能健檢！"
             
+            # 取得最新額度資訊
+            from datetime import datetime
+            now = datetime.now()
+            month_str = f"{now.year}-{now.month:02d}"
+            user_state = database.get_user_status_data(user_id, month_str)
+            free_limit = int(user_state.get('free_limit', 3))
+            usage = int(user_state.get('usage', 0))
+            purchased = int(user_state.get('purchased', 0))
+            tier = user_state.get('tier', 'FREE')
+            
+            rem_free = max(0, free_limit - usage)
+            msg_text += f"\n\n---\n📊 目前最新額度狀態：\n⭐ 會員方案：{tier}\n🎁 當月方案額度剩餘：{rem_free} 次\n🪙 終身可用儲值點數：{purchased} 點"
+            
+            try:
+                line_bot_api.push_message(user_id, TextSendMessage(text=msg_text))
+            except Exception as e:
+                app.logger.error(f"Push message failed: {e}")
+                
+    return "OK"
+
+@app.route("/newebpay/period_return", methods=["POST"])
+def newebpay_period_return():
+    period_hex = request.form.get("Period")
+    if not period_hex:
+        return "No PeriodData", 400
+        
+    data = newebpay_integration.decrypt_newebpay_period_response(
+        period_hex, 
+        newebpay_integration.HASH_KEY, 
+        newebpay_integration.HASH_IV
+    )
+    
+    if not data:
+        return "Decrypt Error", 400
+        
+    status = data.get("Status")
+    if status == "SUCCESS":
+        result = data.get("Result") or {}
+        order_id = result.get("MerchantOrderNo") or data.get("MerchantOrderNo")
+        
+        # 從資料庫抓回對應的 user_id 和 plan_id
+        order_info = database.get_payment_order(order_id)
+        
+        user_id = None
+        plan_id = None
+        if order_info:
+            user_id = order_info['user_id']
+            plan_id = order_info['plan_id']
+            
+        if user_id and plan_id:
+            if plan_id == "basic_single":
+                database.update_subscription(user_id, "BASIC")
+                msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「小資玩家」定期定額方案，每月固定扣款，本月已開通 15 次智能健檢！"
+            elif plan_id == "advanced_single":
+                database.update_subscription(user_id, "ADVANCED")
+                msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「進階藏家」定期定額方案，每月固定扣款，本月已開通 100 次智能健檢！"
+            elif plan_id == "business_single":
+                database.update_subscription(user_id, "BUSINESS")
+                msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「商務旗艦」定期定額方案，每月固定扣款，本月已開通 1000 次智能健檢！"
+            else:
+                msg_text = "🎉 [藍新訂閱] 您的定期定額委託已成功建立並完成首期扣款！"
+                
             # 取得最新額度資訊
             from datetime import datetime
             now = datetime.now()
