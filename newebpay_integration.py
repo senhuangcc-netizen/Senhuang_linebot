@@ -37,7 +37,7 @@ def create_sha256_hash(trade_info, hash_key, hash_iv):
     """
     產生 TradeSha：HashKey=xxx&TradeInfo=xxx&HashIV=xxx 並 SHA256 加密轉大寫
     """
-    check_string = f"HashKey={hash_key}&{trade_info}&HashIV={hash_iv}"
+    check_string = f"HashKey={hash_key}&TradeInfo={trade_info}&HashIV={hash_iv}"
     sha256 = hashlib.sha256(check_string.encode('utf-8')).hexdigest()
     return sha256.upper()
 
@@ -57,6 +57,7 @@ def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, 
         "Email": email,
         "LoginType": 0,
         "NotifyURL": notify_url,
+        "ClientBackURL": client_back_url,
     }
     
     # 強制依照 Key 字母排序 (這在計算簽章/加密時非常重要，能確保跨語言一致性)
