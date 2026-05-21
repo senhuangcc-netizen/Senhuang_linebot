@@ -400,7 +400,7 @@ def buy_preview(user_id, plan_id):
         "Email": "test_user@example.com",
         "LoginType": 0,
         "NotifyURL": f"{host}/newebpay/return",
-        "ClientBackURL": "line://app",
+        "ClientBackURL": f"{host}/intro",
     }
     sorted_p = dict(sorted(params.items()))
     raw_q = _up.urlencode(sorted_p, quote_via=_up.quote)
@@ -467,7 +467,7 @@ def buy(user_id, plan_id):
         host = request.host_url.rstrip("/")
         
     notify_url = f"{host}/newebpay/return"
-    client_back_url = "line://app" 
+    client_back_url = f"{host}/intro" 
     
     # 使用純英文描述避免編碼問題
     ascii_desc = "Antique_Appraisal_Service"
