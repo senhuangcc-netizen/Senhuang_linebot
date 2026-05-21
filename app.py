@@ -318,6 +318,102 @@ def intro():
 def serve_card(filename):
     return send_from_directory("cards", filename)
 
+@app.route("/sha256_test")
+def sha256_test():
+    """
+    診斷端點：使用藍新官方測試金鑰驗證 SHA256 演算法是否正確
+    測試金鑰來自藍新手冊 / 測試商店
+    """
+    import newebpay_integration, urllib.parse, hashlib
+    
+    # 藍新官方測試商店金鑰
+    TEST_KEY = "Fs5cX1TGqYM2PpdbE14a9H83YQSQF5jn"
+    TEST_IV  = "C6AcmfqJILwgnhIP"
+    TEST_MID = "MS127874575"
+    
+    # 固定測試參數（timestamp 固定，方便重複驗算）
+    params = {
+        "RespondType": "JSON",
+        "TimeStamp": "1485232229",
+        "Version": "2.0",
+        "MerchantOrderNo": "S_1485232229",
+        "Amt": 40,
+        "ItemDesc": "Test",
+        "Email": "test@test.com",
+        "LoginType": 0,
+        "NotifyURL": "https://example.com/notify",
+        "ClientBackURL": "https://example.com/back",
+    }
+    sorted_params = dict(sorted(params.items()))
+    raw_query = urllib.parse.urlencode(sorted_params, quote_via=urllib.parse.quote)
+    trade_info = newebpay_integration.create_aes_encrypt(sorted_params, TEST_KEY, TEST_IV)
+    check_string = f"HashKey={TEST_KEY}&TradeInfo={trade_info}&HashIV={TEST_IV}"
+    trade_sha = hashlib.sha256(check_string.encode('utf-8')).hexdigest().upper()
+    
+    # 正式金鑰的長度確認
+    prod_key = newebpay_integration.HASH_KEY
+    prod_iv  = newebpay_integration.HASH_IV
+    
+    return f"""<pre>
+=== 測試金鑰驗算 (ccore 測試環境) ===
+Raw Query : {raw_query}
+TradeInfo : {trade_info}
+TradeSha  : {trade_sha}
+
+=== 正式金鑰狀態 ===
+MERCHANT_ID : {newebpay_integration.MERCHANT_ID}
+HASH_KEY    : len={len(prod_key)}, first4={prod_key[:4]!r}, last4={prod_key[-4:]!r}
+HASH_IV     : len={len(prod_iv)},  first4={prod_iv[:4]!r}, last4={prod_iv[-4:]!r}
+
+=== 請將上方 TradeSha 與藍新測試工具比對 ===
+測試端點: https://ccore.newebpay.com/MPG/mpg_gateway (ccore)
+</pre>"""
+
+@app.route("/buy_preview/<user_id>/<plan_id>")
+def buy_preview(user_id, plan_id):
+    """顯示表單但不自動提交（供除錯用）"""
+    import uuid
+    plans = {
+        "point10": {"amount": 100, "desc": "Antique_Appraisal_Service"},
+        "basic_single": {"amount": 120, "desc": "Antique_Appraisal_Service"},
+    }
+    if plan_id not in plans:
+        return "Invalid Plan", 400
+    order_id = "T" + uuid.uuid4().hex[:20]
+    railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+    host = f"https://{railway_domain}" if railway_domain else request.host_url.rstrip("/")
+    import newebpay_integration as nb
+    import urllib.parse as _up
+    params = {
+        "RespondType": "JSON",
+        "TimeStamp": int(__import__('time').time()),
+        "Version": "2.0",
+        "MerchantOrderNo": order_id,
+        "Amt": plans[plan_id]["amount"],
+        "ItemDesc": plans[plan_id]["desc"],
+        "Email": f"{user_id}@example.com",
+        "LoginType": 0,
+        "NotifyURL": f"{host}/newebpay/return",
+        "ClientBackURL": "line://app",
+    }
+    sorted_p = dict(sorted(params.items()))
+    raw_q = _up.urlencode(sorted_p, quote_via=_up.quote)
+    trade_info = nb.create_aes_encrypt(sorted_p, nb.HASH_KEY, nb.HASH_IV)
+    trade_sha = nb.create_sha256_hash(trade_info, nb.HASH_KEY, nb.HASH_IV)
+    return f"""<pre>
+MerchantID : {nb.MERCHANT_ID}
+TradeInfo  : {trade_info}
+TradeSha   : {trade_sha}
+Raw Query  : {raw_q}
+</pre>
+<form method="post" action="{nb.NEWEBPAY_URL}">
+  <input type="hidden" name="MerchantID" value="{nb.MERCHANT_ID}">
+  <input type="hidden" name="TradeInfo" value="{trade_info}">
+  <input type="hidden" name="TradeSha" value="{trade_sha}">
+  <input type="hidden" name="Version" value="2.0">
+  <button type="submit">手動送出表單</button>
+</form>"""
+
 @app.route("/callback", methods=['POST'])
 def callback():
     import threading
