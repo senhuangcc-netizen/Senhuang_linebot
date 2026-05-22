@@ -63,7 +63,7 @@ def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, 
     params.update({
         "NotifyURL": notify_url,
         "ClientBackURL": client_back_url,
-    }
+    })
     
     # 強制依照 Key 字母排序
     sorted_params = dict(sorted(params.items()))
@@ -137,7 +137,7 @@ def generate_newebpay_period_form_html(order_id, amount, desc, email, notify_url
     params.update({
         "NotifyURL": notify_url,    # 每期授權結果通知網址 (幕後 Post)
         "ReturnURL": client_back_url # 首次扣款成功後，Form Post 導回商店頁面
-    }
+    })
     
     # 強制依照 Key 字母排序以進行加密
     sorted_params = dict(sorted(params.items()))
