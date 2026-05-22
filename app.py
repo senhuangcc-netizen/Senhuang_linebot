@@ -808,22 +808,50 @@ def handle_message(event):
                 success, rem_free, rem_purchased = database.consume_quota(user_id, month_str)
                 
                 # 回傳分析結果
-                result_text = resp_text + f"\n\n---\n📊 目前剩餘可健檢額度：\n🎁 本月免費/訂閱額度：{rem_free} 次\n🪙 單筆儲值備用點數：{rem_purchased} 點"
+                quota_suffix = f"\n\n---\n📊 目前剩餘可健檢額度：\n🎁 本月免費/訂閱額度：{rem_free} 次\n🪙 單筆儲值備用點數：{rem_purchased} 點"
                 
                 railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
                 if railway_domain:
                     host_url = f"https://{railway_domain}"
                 else:
                     host_url = request.host_url.rstrip("/")
-                    
                 card_url = f"{host_url}/cards/{card_filename}"
                 
+                # LINE 單則訊息上限 5000 字，超過需要拆分
+                MAX_LEN = 4800  # 留緩衝給 quota_suffix
+                messages_to_send = []
+                
+                if len(resp_text) <= MAX_LEN:
+                    # 文字足夠短，直接一則送出
+                    messages_to_send.append(TextSendMessage(text=resp_text + quota_suffix))
+                else:
+                    # 將 resp_text 切成多段，每段不超過 4800 字
+                    chunks = []
+                    remaining = resp_text
+                    while remaining:
+                        if len(remaining) <= MAX_LEN:
+                            chunks.append(remaining)
+                            break
+                        # 嘗試在最近的換行符切割
+                        cut_pos = remaining.rfind('\n', 0, MAX_LEN)
+                        if cut_pos == -1:
+                            cut_pos = MAX_LEN
+                        chunks.append(remaining[:cut_pos])
+                        remaining = remaining[cut_pos:].lstrip('\n')
+                    
+                    # 第一段直接送出
+                    for i, chunk in enumerate(chunks):
+                        if i == len(chunks) - 1:
+                            # 最後一段附加額度資訊
+                            messages_to_send.append(TextSendMessage(text=chunk + quota_suffix))
+                        else:
+                            messages_to_send.append(TextSendMessage(text=chunk))
+                
+                messages_to_send.append(ImageSendMessage(original_content_url=card_url, preview_image_url=card_url))
+                
                 line_bot_api.push_message(
-                    user_id, 
-                    [
-                        TextSendMessage(text=result_text),
-                        ImageSendMessage(original_content_url=card_url, preview_image_url=card_url)
-                    ]
+                    user_id,
+                    messages_to_send
                 )
                 
                 # 健檢結束後，自動切換回人工模式，避免影響後續對話或動作
