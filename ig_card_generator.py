@@ -40,7 +40,7 @@ def draw_sci_fi_panel(draw, width, height, fill_color, border_color, outer_width
     繪製科技感切角雙邊框面版 (HUD Panel)
     自適應寬高，左右各留 100px 邊距，上下各留 50px
     """
-    lx, rx = 100, width - 100
+    lx, rx = 50, width - 50
     ty, by = 50, height - 50
     c = 35
     vertices_outer = [
@@ -160,7 +160,7 @@ def generate_ig_card(user_id, title, prob, valuation, image_bytes, output_dir="c
 
     # === 分隔線 ===
     sep1_y = rate_y + 135
-    draw.line([(155, sep1_y), (645, sep1_y)], fill=(0, 200, 255, 120), width=1)
+    draw.line([(120, sep1_y), (680, sep1_y)], fill=(0, 200, 255, 120), width=1)
 
     # === 區塊 4：健檢操作者 ===
     op_y = sep1_y + 20
@@ -169,15 +169,15 @@ def generate_ig_card(user_id, title, prob, valuation, image_bytes, output_dir="c
 
     # === 分隔線 ===
     sep2_y = op_y + 100
-    draw.line([(155, sep2_y), (645, sep2_y)], fill=(0, 200, 255, 70), width=1)
+    draw.line([(120, sep2_y), (680, sep2_y)], fill=(0, 200, 255, 70), width=1)
 
     # === 區塊 5：底部三欄 (日期 | 箭頭 | 估值) ===
     btm_y = sep2_y + 22
 
     # 左：日期
     date_str = datetime.now().strftime("%Y-%m-%d")
-    draw.text((165, btm_y), date_str, font=font_md, fill=(255, 255, 255, 255))
-    draw.text((165, btm_y + 40), "Ai Antique Diagnosis", font=font_sm, fill=(110, 160, 160, 255))
+    draw.text((120, btm_y), date_str, font=font_md, fill=(255, 255, 255, 255))
+    draw.text((120, btm_y + 40), "Ai Antique Diagnosis", font=font_sm, fill=(110, 160, 160, 255))
 
     # 中：箭頭
     arr_bbox = draw.textbbox((0, 0), ">>>>", font=font_lg)
@@ -185,15 +185,15 @@ def generate_ig_card(user_id, title, prob, valuation, image_bytes, output_dir="c
     draw.text(((width - arr_w) // 2, btm_y + 8), ">>>>", font=font_lg, fill=(0, 255, 255, 255))
 
     # 右：估值 (拆成兩行避免超出右側邊框)
-    draw.text((490, btm_y - 28), "Price Valuation", font=font_md, fill=(200, 220, 255, 255))
+    draw.text((460, btm_y - 28), "Price Valuation", font=font_md, fill=(200, 220, 255, 255))
     if "~" in valuation:
         val_parts = valuation.split("~", 1)
-        draw.text((490, btm_y + 6),  val_parts[0].rstrip() + "~", font=font_lg, fill=(0, 255, 255, 255))
-        draw.text((490, btm_y + 44), val_parts[1].lstrip(),        font=font_lg, fill=(0, 255, 255, 255))
-        draw.text((490, btm_y + 82), "若為真品之估值", font=font_sm, fill=(0, 170, 255, 255))
+        draw.text((460, btm_y + 6),  val_parts[0].rstrip() + "~", font=font_lg, fill=(0, 255, 255, 255))
+        draw.text((460, btm_y + 44), val_parts[1].lstrip(),        font=font_lg, fill=(0, 255, 255, 255))
+        draw.text((460, btm_y + 82), "若為真品之估值", font=font_sm, fill=(0, 170, 255, 255))
     else:
-        draw.text((490, btm_y + 6),  valuation, font=font_lg, fill=(0, 255, 255, 255))
-        draw.text((490, btm_y + 44), "若為真品之估值", font=font_sm, fill=(0, 170, 255, 255))
+        draw.text((460, btm_y + 6),  valuation, font=font_lg, fill=(0, 255, 255, 255))
+        draw.text((460, btm_y + 44), "若為真品之估值", font=font_sm, fill=(0, 170, 255, 255))
 
     # === 存檔 ===
     card_filename = f"card_{uuid.uuid4().hex[:12]}.png"
