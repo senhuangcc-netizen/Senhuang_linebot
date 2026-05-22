@@ -316,28 +316,6 @@ def intro():
 
 @app.route("/payment/success", methods=["GET", "POST"])
 def payment_success():
-    import json
-    app.logger.info(f"[NewebPay ReturnURL] Method: {request.method}")
-    app.logger.info(f"[NewebPay ReturnURL] Form Data: {dict(request.form)}")
-    app.logger.info(f"[NewebPay ReturnURL] Args: {dict(request.args)}")
-    
-    # Check if NewebPay returned an error (or any data, since we are debugging)
-    if request.method == "POST" and request.form:
-        debug_info = dict(request.form)
-        if "Period" in request.form:
-            try:
-                import newebpay_integration
-                decrypted = newebpay_integration.decrypt_newebpay_period_response(
-                    request.form["Period"], 
-                    newebpay_integration.HASH_KEY, 
-                    newebpay_integration.HASH_IV
-                )
-                debug_info["Decrypted_Period"] = decrypted
-            except Exception as e:
-                debug_info["Decrypted_Period_Error"] = str(e)
-                
-        return f"<h1>Debug Form Data</h1><pre>{json.dumps(debug_info, ensure_ascii=False, indent=2)}</pre><p>請截圖此畫面給開發人員。</p>"
-
     try:
         with open("success.html", "r", encoding="utf-8") as f:
             return f.read()

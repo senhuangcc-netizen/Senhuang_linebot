@@ -122,7 +122,7 @@ def generate_newebpay_period_form_html(order_id, amount, desc, email, notify_url
         "PeriodType": "M",          # M = 每月扣款
         "PeriodPoint": period_point, # 每月扣款日期 (01~31)
         "PeriodStartType": 2,       # 2 = 立即執行首期委託金額授權
-        "PeriodTimes": "NE",        # 委託授權總期數 (NE = 無限期自動續約)
+        "PeriodTimes": 99,          # 委託授權總期數 (99 = 未啟用CAU時的實質無上限)
         "PayerEmail": email,
         "PaymentInfo": "Y",         # 顯示付款人姓名、電話、手機等欄位
         "OrderInfo": "N",           # 不顯示收件人資訊欄位
