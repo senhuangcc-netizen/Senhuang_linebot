@@ -689,7 +689,15 @@ def handle_message(event):
         if user_msg == "開始健檢":
             # 檢查是否有上傳照片
             if user_id not in user_images or len(user_images[user_id]) == 0:
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ 您尚未上傳任何照片。\n\n請先傳送物件照片，再輸入『開始健檢』。"))
+                msg = (
+                    "🤖 歡迎使用【AI文物健檢】服務！\n\n"
+                    "請直接傳送您的「物件照片」與「文字說明」，我將為您進行初步分析。\n\n"
+                    "⚠️ 【重要提醒】\n"
+                    "1. AI文物健檢乃基於資料庫與市場資訊，仍有較高誤差值，不具任何鑑定效益，僅供藏家初步過濾使用。\n"
+                    "2. 單次上傳的照片，請確保只包含「同一件」物件，以免造成AI誤判。\n\n"
+                    "若AI評估機率較高，建議您後續點選「人工預約」進行實體鑑定！"
+                )
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
                 return
             
             # ---- 額度檢查 ----
