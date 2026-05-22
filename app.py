@@ -347,7 +347,7 @@ def callback():
     threading.Thread(target=process, daemon=True).start()
     return 'OK'
 
-@app.route("/buy/<user_id>/<plan_id>")
+@app.route("/buy/<user_id>/<plan_id>", methods=["GET", "POST", "OPTIONS"])
 def buy(user_id, plan_id):
     plans = {
         "point10": {"amount": 100, "desc": "購買 10 次健檢額度點數"},
