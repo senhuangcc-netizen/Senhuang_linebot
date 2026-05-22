@@ -306,7 +306,7 @@ model = genai.GenerativeModel(
 # ==========================================
 # 4. Webhook 入口
 # ==========================================
-@app.route("/intro")
+@app.route("/intro", methods=["GET", "POST"])
 def intro():
     try:
         with open("intro.html", "r", encoding="utf-8") as f:
