@@ -663,7 +663,7 @@ def handle_message(event):
         return
         
     # 1. 偵測是否要「切換人工」 (配合你的圖文選單按鈕)
-    if user_msg in ["人工預約", "人工客服", "專人服務","真人客服"]:
+    if user_msg in ["人工預約", "人工客服", "專人服務", "真人客服", "預約送檢"]:
         database.set_user_mode(user_id, "HUMAN")
         msg = "👨‍💼 已為您轉接人工預約服務。\n\n請直接留言您的需求，我們會盡快回覆您。\n\n(若需回到 AI 模式，請點擊選單「AI文物健檢」)"
         messages = [TextSendMessage(text=msg)]
