@@ -88,7 +88,7 @@ def generate_ig_card(user_id, title, prob, valuation, image_bytes, output_dir="c
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    width, height = 800, 1080
+    width, height = 800, 1160
     base_img = Image.new("RGBA", (width, height), (5, 11, 26, 255))
     draw = ImageDraw.Draw(base_img, "RGBA")
 
@@ -184,10 +184,16 @@ def generate_ig_card(user_id, title, prob, valuation, image_bytes, output_dir="c
     arr_w = arr_bbox[2] - arr_bbox[0]
     draw.text(((width - arr_w) // 2, btm_y + 8), ">>>>", font=font_lg, fill=(0, 255, 255, 255))
 
-    # 右：估值
+    # 右：估值 (拆成兩行避免超出右側邊框)
     draw.text((490, btm_y - 28), "Price Valuation", font=font_md, fill=(200, 220, 255, 255))
-    draw.text((490, btm_y + 6), valuation, font=font_lg, fill=(0, 255, 255, 255))
-    draw.text((490, btm_y + 44), "若為真品之估值", font=font_sm, fill=(0, 170, 255, 255))
+    if "~" in valuation:
+        val_parts = valuation.split("~", 1)
+        draw.text((490, btm_y + 6),  val_parts[0].rstrip() + "~", font=font_lg, fill=(0, 255, 255, 255))
+        draw.text((490, btm_y + 44), val_parts[1].lstrip(),        font=font_lg, fill=(0, 255, 255, 255))
+        draw.text((490, btm_y + 82), "若為真品之估值", font=font_sm, fill=(0, 170, 255, 255))
+    else:
+        draw.text((490, btm_y + 6),  valuation, font=font_lg, fill=(0, 255, 255, 255))
+        draw.text((490, btm_y + 44), "若為真品之估值", font=font_sm, fill=(0, 170, 255, 255))
 
     # === 存檔 ===
     card_filename = f"card_{uuid.uuid4().hex[:12]}.png"
