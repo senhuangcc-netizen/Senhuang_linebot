@@ -314,6 +314,14 @@ def intro():
     except Exception as e:
         return f"Error loading intro.html: {e}", 404
 
+@app.route("/payment/success", methods=["GET", "POST"])
+def payment_success():
+    try:
+        with open("success.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        return f"Error loading success.html: {e}", 404
+
 @app.route("/cards/<filename>")
 def serve_card(filename):
     return send_from_directory("cards", filename)
@@ -366,7 +374,7 @@ def buy(user_id, plan_id):
         host = request.host_url.rstrip("/")
         
     notify_url = f"{host}/newebpay/period_return" if plan_id != "point10" else f"{host}/newebpay/return"
-    client_back_url = f"{host}/intro" 
+    client_back_url = f"{host}/payment/success" 
     
     # 使用純英文描述避免編碼問題
     ascii_desc = "Antique_Appraisal_Service"

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A.A.D 智能文物健檢 - 交易成功</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #0b0f19;
+            color: #f8f9fa;
+        }
+        .neon-text {
+            text-shadow: 0 0 8px #00f2fe;
+        }
+        .hud-bg {
+            background: linear-gradient(135deg, rgba(16, 24, 48, 0.9) 0%, rgba(10, 15, 30, 0.95) 100%);
+            border: 1px solid rgba(0, 242, 254, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6 antialiased">
+    <div class="max-w-md w-full hud-bg rounded-2xl p-8 relative overflow-hidden shadow-2xl border border-[#00f2fe]/30">
+        <!-- Sci-Fi HUD Corner Ornaments -->
+        <div class="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-[#00f2fe]"></div>
+        <div class="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-[#00f2fe]"></div>
+        <div class="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-[#00f2fe]"></div>
+        <div class="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#00f2fe]"></div>
+
+        <div class="text-center">
+            <!-- Neon Glowing Success Icon -->
+            <div class="w-20 h-20 mx-auto mb-6 flex items-center justify-center rounded-full bg-[#00f2fe]/10 border-2 border-[#00f2fe] shadow-[0_0_20px_rgba(0,242,254,0.4)]">
+                <i class="fa-solid fa-check text-4xl text-[#00f2fe] neon-text"></i>
+            </div>
+
+            <h1 class="text-2xl font-extrabold mb-2 tracking-wider text-[#00f2fe] neon-text">交易授權成功</h1>
+            <div class="text-xs text-gray-500 font-mono mb-6">TRANSACTION SUCCESSFUL</div>
+
+            <p class="text-sm text-gray-300 leading-relaxed mb-8">
+                感謝您的支持與訂閱！您的方案額度已即時更新。<br>
+                <span class="text-[#00f2fe] font-bold">請返回 LINE 官方帳號聊天室</span>，我們已將額度更新明細推播至您的對話框中。
+            </p>
+
+            <!-- Back to LINE Button -->
+            <a href="https://line.me/R/" class="inline-flex items-center justify-center w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-[#00f2fe] to-[#4facfe] text-slate-950 font-bold hover:shadow-[0_0_25px_rgba(0,242,254,0.6)] transition-all duration-300 transform active:scale-95">
+                <i class="fa-brands fa-line text-xl mr-2"></i>
+                返回 LINE 官方帳號
+            </a>
+        </div>
+    </div>
+</body>
+</html>
