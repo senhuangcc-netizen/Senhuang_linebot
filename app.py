@@ -797,6 +797,9 @@ def handle_message(event):
                         ImageSendMessage(original_content_url=card_url, preview_image_url=card_url)
                     ]
                 )
+                
+                # 健檢結束後，自動切換回人工模式，避免影響後續對話或動作
+                database.set_user_mode(user_id, "HUMAN")
                 return
                 
             except Exception as e:
@@ -804,8 +807,9 @@ def handle_message(event):
                 print(f"Gemini Analysis Error: {e}")
                 print(traceback.format_exc())
                 line_bot_api.push_message(user_id, TextSendMessage(text="抱歉，A.A.D 系統分析過程中發生錯誤，請稍後再試。"))
-                # 發生錯誤也清空暫存，避免卡死
+                # 發生錯誤也清空暫存，並切回人工模式
                 user_images[user_id] = []
+                database.set_user_mode(user_id, "HUMAN")
                 return
 
         # 將用戶輸入的文字視為物件說明加入暫存
