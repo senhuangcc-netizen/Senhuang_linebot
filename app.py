@@ -674,15 +674,13 @@ def handle_message(event):
     # 3. 核心邏輯：預設為 HUMAN（靜音），需主動點選「AI文物健檢」才啟用 AI
     current_mode = database.get_user_mode(user_id)
 
+    # 防呆機制：只要輸入「開始健檢」，強制切換至 AI 模式
+    if user_msg == "開始健檢":
+        database.set_user_mode(user_id, "AI")
+        current_mode = "AI"
+
     if current_mode == "HUMAN":
-        # 「開始健檢」特例：提示用戶先啟動 AI 服務
-        if user_msg == "開始健檢":
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="⚠️ 請先點選選單中的「AI文物健檢」以啟動服務，再上傳照片並輸入『開始健檢』。")
-            )
-            return
-        # 其他訊息：人工模式下完全靜音，讓真人透過 LINE 後台回覆
+        # 人工模式下完全靜音，讓真人透過 LINE 後台回覆
         print(f"人工模式中，忽略訊息: {user_msg}")
         return
 
@@ -827,35 +825,37 @@ def handle_image(event):
     user_id = event.source.user_id
     current_mode = database.get_user_mode(user_id)
 
-    if current_mode == "AI":
-        try:
-            # 取得圖片內容
-            message_content = line_bot_api.get_message_content(event.message.id)
-            image_bytes = b""
-            for chunk in message_content.iter_content():
-                image_bytes += chunk
+    try:
+        # 取得圖片內容 (不論在哪個模式，都先暫存起來，防呆)
+        message_content = line_bot_api.get_message_content(event.message.id)
+        image_bytes = b""
+        for chunk in message_content.iter_content():
+            image_bytes += chunk
 
-            # 構建 Gemini 支援的圖片格式
-            image_part = {
-                "mime_type": "image/jpeg",
-                "data": image_bytes
-            }
+        # 構建 Gemini 支援的圖片格式
+        image_part = {
+            "mime_type": "image/jpeg",
+            "data": image_bytes
+        }
 
-            # 存入該用戶的暫存區
-            if user_id not in user_images:
-                user_images[user_id] = []
-            user_images[user_id].append(image_part)
+        # 存入該用戶的暫存區
+        if user_id not in user_images:
+            user_images[user_id] = []
+        user_images[user_id].append(image_part)
 
-            # 統計目前暫存庫內數量
-            img_count = sum(1 for item in user_images[user_id] if isinstance(item, dict))
-            text_count = sum(1 for item in user_images[user_id] if isinstance(item, str))
+        # 統計目前暫存庫內數量
+        img_count = sum(1 for item in user_images[user_id] if isinstance(item, dict))
+        text_count = sum(1 for item in user_images[user_id] if isinstance(item, str))
 
-            # 立刻回覆確認（不做額外 AI 呼叫）
+        # 只有在 AI 模式下，才回覆確認訊息 (人工模式下保持靜音，但照片已偷偷存好)
+        if current_mode == "AI":
             msg = f"✅ 已收到照片 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他角度（如底部、特寫）或文字補充嗎？\n若已傳送完畢，請輸入『開始健檢』。"
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
-        except Exception as e:
-            print(f"Image Receive Error: {e}")
+    except Exception as e:
+        print(f"Image Receive Error: {e}")
+        # 如果是 AI 模式才報錯，人工模式報錯會干擾對話
+        if current_mode == "AI":
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="抱歉，圖片接收失敗，請重新傳送。"))
 
 

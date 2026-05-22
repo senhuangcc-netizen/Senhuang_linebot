@@ -54,14 +54,14 @@ def init_db():
 def get_user_mode(user_id):
     conn = get_connection()
     if not conn:
-        return "HUMAN"  # 預設為 HUMAN
+        return "AI"  # 預設為 AI
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT current_mode FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
-            if row:
+            if row and row['current_mode']:
                 return row['current_mode']
-            return "HUMAN"
+            return "AI"
     finally:
         conn.close()
 
