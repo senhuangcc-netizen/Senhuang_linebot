@@ -406,7 +406,7 @@ def buy(user_id, plan_id):
     
     # 使用純英文描述避免編碼問題
     ascii_desc = "Antique_Appraisal_Service"
-    email = f"{user_id}@example.com"
+    email = ""
     
     if plan_id == "point10":
         html = newebpay_integration.generate_newebpay_form_html(

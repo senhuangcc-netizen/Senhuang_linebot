@@ -55,8 +55,12 @@ def generate_newebpay_form_html(order_id, amount, item_desc, email, notify_url, 
         "MerchantOrderNo": order_id,
         "Amt": amount,
         "ItemDesc": item_desc,
-        "Email": email,
         "LoginType": 0,
+    }
+    if email:
+        params["Email"] = email
+        
+    params.update({
         "NotifyURL": notify_url,
         "ClientBackURL": client_back_url,
     }
@@ -123,10 +127,14 @@ def generate_newebpay_period_form_html(order_id, amount, desc, email, notify_url
         "PeriodPoint": period_point, # 每月扣款日期 (01~31)
         "PeriodStartType": 2,       # 2 = 立即執行首期委託金額授權
         "PeriodTimes": 99,          # 委託授權總期數 (99 = 未啟用CAU時的實質無上限)
-        "PayerEmail": email,
         "PaymentInfo": "Y",         # 顯示付款人姓名、電話、手機等欄位
         "OrderInfo": "N",           # 不顯示收件人資訊欄位
         "EmailModify": 1,           # 允許付款人修改電子信箱
+    }
+    if email:
+        params["PayerEmail"] = email
+        
+    params.update({
         "NotifyURL": notify_url,    # 每期授權結果通知網址 (幕後 Post)
         "ReturnURL": client_back_url # 首次扣款成功後，Form Post 導回商店頁面
     }
