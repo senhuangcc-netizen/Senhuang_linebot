@@ -316,6 +316,11 @@ def intro():
 
 @app.route("/payment/success", methods=["GET", "POST"])
 def payment_success():
+    import json
+    app.logger.info(f"[NewebPay ReturnURL] Method: {request.method}")
+    app.logger.info(f"[NewebPay ReturnURL] Form Data: {dict(request.form)}")
+    app.logger.info(f"[NewebPay ReturnURL] Args: {dict(request.args)}")
+    
     try:
         with open("success.html", "r", encoding="utf-8") as f:
             return f.read()
