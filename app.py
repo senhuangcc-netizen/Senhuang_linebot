@@ -603,8 +603,12 @@ def handle_message(event):
     # 只要訊息包含這些字，就直接丟漂亮的卡片，不經過 Gemini
     price_keywords = ["收費", "費用", "價錢", "價目", "多少錢", "價格"]
     if any(k in user_msg for k in price_keywords):
-        flex_msg = get_price_flex() # 呼叫剛剛寫好的函式
-        line_bot_api.reply_message(event.reply_token, flex_msg)
+        flex_msg = get_price_flex()
+        messages = [flex_msg]
+        if user_id in user_images and len(user_images[user_id]) > 0:
+            user_images[user_id] = []
+            messages.append(TextSendMessage(text="⚠️ 已為您中斷先前的文物健檢流程（未扣除額度）。"))
+        line_bot_api.reply_message(event.reply_token, messages)
         return
         
     buy_keywords = ["購買", "儲值", "點數", "方案", "付費", "訂閱"]
@@ -617,7 +621,11 @@ def handle_message(event):
             host = "http://localhost:8080" # 備用
             
         flex_msg = get_subscription_flex(host, user_id)
-        line_bot_api.reply_message(event.reply_token, flex_msg)
+        messages = [flex_msg]
+        if user_id in user_images and len(user_images[user_id]) > 0:
+            user_images[user_id] = []
+            messages.append(TextSendMessage(text="⚠️ 已為您中斷先前的文物健檢流程（未扣除額度）。"))
+        line_bot_api.reply_message(event.reply_token, messages)
         return
         
     quota_keywords = ["查詢額度", "額度", "我的狀態", "會員狀態"]
@@ -647,14 +655,22 @@ def handle_message(event):
             f"🪙 永久買斷點數：{purchased} 點\n\n"
             f"💡 若額度不足，請輸入「購買」瀏覽升級方案。"
         )
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg_text))
+        messages = [TextSendMessage(text=msg_text)]
+        if user_id in user_images and len(user_images[user_id]) > 0:
+            user_images[user_id] = []
+            messages.append(TextSendMessage(text="⚠️ 已為您中斷先前的文物健檢流程（未扣除額度）。"))
+        line_bot_api.reply_message(event.reply_token, messages)
         return
         
     # 1. 偵測是否要「切換人工」 (配合你的圖文選單按鈕)
     if user_msg in ["人工預約", "人工客服", "專人服務","真人客服"]:
         database.set_user_mode(user_id, "HUMAN")
         msg = "👨‍💼 已為您轉接人工預約服務。\n\n請直接留言您的需求，我們會盡快回覆您。\n\n(若需回到 AI 模式，請點擊選單「AI文物健檢」)"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+        messages = [TextSendMessage(text=msg)]
+        if user_id in user_images and len(user_images[user_id]) > 0:
+            user_images[user_id] = []
+            messages.append(TextSendMessage(text="⚠️ 已為您中斷先前的文物健檢流程（未扣除額度）。"))
+        line_bot_api.reply_message(event.reply_token, messages)
         return
 
     # 2. 偵測是否要「切換回 AI」
@@ -668,7 +684,11 @@ def handle_message(event):
             "2. 單次上傳的照片，請確保只包含「同一件」物件，以免造成AI誤判。\n\n"
             "若AI評估機率較高，建議您後續點選「人工預約」進行實體鑑定！"
         )
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+        messages = [TextSendMessage(text=msg)]
+        if user_id in user_images and len(user_images[user_id]) > 0:
+            user_images[user_id] = []
+            messages.append(TextSendMessage(text="⚠️ 已為您中斷先前的文物健檢流程並清空暫存（未扣除額度）。"))
+        line_bot_api.reply_message(event.reply_token, messages)
         return
 
     # 3. 核心邏輯：預設為 HUMAN（靜音），需主動點選「AI文物健檢」才啟用 AI
