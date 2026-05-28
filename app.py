@@ -185,6 +185,97 @@ def get_subscription_flex(host, user_id):
         alt_text="東方森煌館 付費與訂閱方案",
         contents=CarouselContainer(contents=[b1, b2, b3, b4])
     )
+def get_booking_guide_flex():
+    """產生引導至官方 LINE 的精美 Flex Message"""
+    from linebot.models import (
+        URIAction, ButtonComponent, BubbleContainer, BoxComponent, TextComponent, SeparatorComponent
+    )
+    bubble = BubbleContainer(
+        size='giga',
+        styles={
+            'header': {'background_color': '#111111'},
+            'body': {'background_color': '#1a1a1a'},
+            'footer': {'background_color': '#111111'}
+        },
+        header=BoxComponent(
+            layout='vertical',
+            padding_all='lg',
+            contents=[
+                TextComponent(text='🏛️ 東方森煌官方', weight='bold', size='lg', color='#c5a880')
+            ]
+        ),
+        body=BoxComponent(
+            layout='vertical',
+            padding_all='xl',
+            contents=[
+                TextComponent(text='專人預約送檢與客服', weight='bold', size='xl', color='#ffffff'),
+                SeparatorComponent(margin='md', color='#333333'),
+                
+                TextComponent(
+                    text='本鑑定所之「現場送檢」與「寄送送檢」預約流程，已全面整合至官方 LINE@ 客服帳號。',
+                    size='sm',
+                    color='#cccccc',
+                    wrap=True,
+                    margin='lg'
+                ),
+                
+                BoxComponent(
+                    layout='vertical',
+                    margin='lg',
+                    spacing='sm',
+                    contents=[
+                        BoxComponent(layout='baseline', contents=[
+                            TextComponent(text='🔸', size='xs', color='#c5a880', flex=1),
+                            TextComponent(text='預約現場送件 (親自到店)', size='sm', color='#aaaaaa', flex=12)
+                        ]),
+                        BoxComponent(layout='baseline', contents=[
+                            TextComponent(text='🔸', size='xs', color='#c5a880', flex=1),
+                            TextComponent(text='線上登記與寄送送檢', size='sm', color='#aaaaaa', flex=12)
+                        ]),
+                        BoxComponent(layout='baseline', contents=[
+                            TextComponent(text='🔸', size='xs', color='#c5a880', flex=1),
+                            TextComponent(text='各類常見問答自主查詢', size='sm', color='#aaaaaa', flex=12)
+                        ])
+                    ]
+                ),
+                
+                TextComponent(
+                    text='請點擊下方按鈕前往官方 LINE，並發送物件照片與預約需求，將有專人立即為您登記：',
+                    size='sm',
+                    color='#c5a880',
+                    weight='bold',
+                    wrap=True,
+                    margin='lg'
+                )
+            ]
+        ),
+        footer=BoxComponent(
+            layout='vertical',
+            padding_all='lg',
+            contents=[
+                ButtonComponent(
+                    style='primary',
+                    color='#c5a880',
+                    action=URIAction(
+                        label='立即前往官方預約 ➔',
+                        uri='https://line.me/R/ti/p/@640aodur'
+                    )
+                ),
+                TextComponent(
+                    text='或手動搜尋 LINE ID: @640aodur',
+                    size='xs',
+                    color='#666666',
+                    align='center',
+                    margin='md'
+                )
+            ]
+        )
+    )
+    return FlexSendMessage(
+        alt_text="東方森煌 - 官方預約送檢引導",
+        contents=bubble
+    )
+
 app = Flask(__name__)
 
 from dotenv import load_dotenv
@@ -454,13 +545,13 @@ def newebpay_return():
                 msg_text = "🎉 [藍新支付] 感謝購買！您的 10 次額度已入帳 (永久有效)。"
             elif plan_id == "basic_single":
                 database.update_subscription(user_id, "BASIC")
-                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「小資玩家」定期定額方案，本月已開通 15 次智能健檢！"
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「小資玩家」年約定期定額方案，本月已開通 15 次智能健檢！"
             elif plan_id == "advanced_single":
                 database.update_subscription(user_id, "ADVANCED")
-                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「進階藏家」定期定額方案，本月已開通 100 次智能健檢！"
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「進階藏家」年約定期定額方案，本月已開通 100 次智能健檢！"
             elif plan_id == "business_single":
                 database.update_subscription(user_id, "BUSINESS")
-                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「商務旗艦」定期定額方案，本月已開通 1000 次智能健檢！"
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「商務旗艦」年約定期定額方案，本月已開通 1000 次智能健檢！"
             
             # 取得最新額度資訊
             from datetime import datetime
@@ -669,8 +760,13 @@ def handle_message(event):
     # 1. 偵測是否要「切換人工」 (配合你的圖文選單按鈕)
     if user_msg in ["人工預約", "人工客服", "專人服務", "真人客服", "預約送檢"]:
         database.set_user_mode(user_id, "HUMAN")
-        msg = "👨‍💼 已為您轉接人工預約服務。\n\n請直接留言您的需求，我們會盡快回覆您。\n\n(若需回到 AI 模式，請點擊選單「AI文物健檢」)"
-        messages = [TextSendMessage(text=msg)]
+        flex_msg = get_booking_guide_flex()
+        text_msg = TextSendMessage(
+            text="請點擊下方連結或搜尋 ID 加好友，並發送物件照片與預約訊息：\n"
+                 "Line ID: @640aodur\n"
+                 "連結: https://line.me/R/ti/p/@640aodur"
+        )
+        messages = [flex_msg, text_msg]
         if user_id in user_images and len(user_images[user_id]) > 0:
             user_images[user_id] = []
             messages.append(TextSendMessage(text="⚠️ 已為您中斷先前的文物健檢流程（未扣除額度）。"))
