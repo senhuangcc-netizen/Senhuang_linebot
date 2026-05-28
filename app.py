@@ -183,7 +183,7 @@ def get_subscription_flex(host, user_id):
 
     return FlexSendMessage(
         alt_text="東方森煌館 付費與訂閱方案",
-        contents=CarouselContainer(contents=[b1, b2, b3, b4])
+        contents=CarouselContainer(contents=[b2, b3, b4, b1])
     )
 def get_booking_guide_flex():
     """產生引導至官方 LINE 的精美 Flex Message"""
