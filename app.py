@@ -280,7 +280,7 @@ SYSTEM_PROMPT = """
 格式：「綜合以上特徵比對，本件物件的真品機率評估為：[數字]%。」
 
 ## 4. 市場價值預估
-格式：「若本件物品經實體儀器與專家確認為真品，從物件特徵初步分析為一件[器物名稱]其當前市場參考價值約落在[金額區間]。」
+格式：「若本件物品經實體儀器與專家確認為真品，從物件特徵初步分析為一件[器物名稱]其當前市場參考價值約落在TWD[金額區間]。」
 
 ## 5. 後續送檢建議
 - 機率 > 65%：「此物件具備較高的時代特徵與研究價值。建議您點擊下方選單的『人工預約』，交由東方森煌古物鑑定所進行實體儀器檢測與專家判定，以獲取正式鑑定報告。」
@@ -454,13 +454,13 @@ def newebpay_return():
                 msg_text = "🎉 [藍新支付] 感謝購買！您的 10 次額度已入帳 (永久有效)。"
             elif plan_id == "basic_single":
                 database.update_subscription(user_id, "BASIC")
-                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「小資玩家」年約定期定額方案，本月已開通 15 次智能健檢！"
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「小資玩家」定期定額方案，本月已開通 15 次智能健檢！"
             elif plan_id == "advanced_single":
                 database.update_subscription(user_id, "ADVANCED")
-                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「進階藏家」年約定期定額方案，本月已開通 100 次智能健檢！"
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「進階藏家」定期定額方案，本月已開通 100 次智能健檢！"
             elif plan_id == "business_single":
                 database.update_subscription(user_id, "BUSINESS")
-                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「商務旗艦」年約定期定額方案，本月已開通 1000 次智能健檢！"
+                msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「商務旗艦」定期定額方案，本月已開通 1000 次智能健檢！"
             
             # 取得最新額度資訊
             from datetime import datetime
