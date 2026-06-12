@@ -757,6 +757,23 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, messages)
         return
         
+    # 0. 解除訂閱/退訂 (導向真人客服)
+    cancel_keywords = ["解除訂閱", "取消訂閱", "退訂", "取消方案"]
+    if any(k in user_msg for k in cancel_keywords):
+        database.set_user_mode(user_id, "HUMAN")
+        msg = (
+            "⚠️ 訂閱方案變更與解除\n\n"
+            "為了保護您的帳號與金流安全，解除訂閱或退訂需要由官方客服專員為您人工處理。\n\n"
+            "請點擊下方連結加入官方 LINE，並告知您欲「解除訂閱」，同仁將馬上協助您辦理手續：\n"
+            "Line ID: @640aodur\n"
+            "連結: https://line.me/R/ti/p/@640aodur"
+        )
+        messages = [TextSendMessage(text=msg)]
+        if user_id in user_images and len(user_images[user_id]) > 0:
+            user_images[user_id] = []
+            messages.append(TextSendMessage(text="⚠️ 已為您中斷先前的文物健檢流程（未扣除額度）。"))
+        line_bot_api.reply_message(event.reply_token, messages)
+        return
     # 1. 偵測是否要「切換人工」 (配合你的圖文選單按鈕)
     if user_msg in ["人工預約", "人工客服", "專人服務", "真人客服", "預約送檢"]:
         database.set_user_mode(user_id, "HUMAN")
