@@ -195,19 +195,21 @@ def update_subscription(user_id, tier, expiry_str_or_add_months=1):
         return
     try:
         with conn.cursor() as cur:
-            # 簡單實作：目前直接把時間往後加一個月 (30天)
             now = datetime.datetime.now()
             next_month = now + datetime.timedelta(days=30)
             expiry_str = next_month.strftime('%Y-%m-%d %H:%M:%S')
+            month_str = f"{now.year}-{now.month:02d}"
 
             cur.execute("""
-                INSERT INTO users (user_id, subscription_tier, subscription_expiry)
-                VALUES (%s, %s, %s)
+                INSERT INTO users (user_id, subscription_tier, subscription_expiry, usage_count, usage_month)
+                VALUES (%s, %s, %s, 0, %s)
                 ON CONFLICT (user_id) 
                 DO UPDATE SET 
                     subscription_tier = EXCLUDED.subscription_tier,
-                    subscription_expiry = EXCLUDED.subscription_expiry
-            """, (user_id, tier, expiry_str))
+                    subscription_expiry = EXCLUDED.subscription_expiry,
+                    usage_count = 0,
+                    usage_month = EXCLUDED.usage_month
+            """, (user_id, tier, expiry_str, month_str))
         conn.commit()
     finally:
         conn.close()
