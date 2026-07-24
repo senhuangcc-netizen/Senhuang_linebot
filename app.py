@@ -1062,7 +1062,7 @@ def handle_image(event):
                 if current_mode == "AI":
                     line_bot_api.reply_message(
                         event.reply_token,
-                        TextSendMessage(text="⚠️ 單次文物健檢的照片上限為 8 張，已達上限，無法再新增照片。\n若已上傳完畢，請輸入『開始健檢』。\n\n（本次不會扣除額度）")
+                        TextSendMessage(text="⚠️ 單次文物健檢的照片上限為 8 張，已達上限，無法再新增照片。\n若已上傳完畢，請輸入『開始健檢』。\n\n（系統將以前 8 張照片進行分析，且仍會扣除健檢額度）")
                     )
                 return
 
