@@ -1163,6 +1163,8 @@ def admin_upgrade(user_id, tier):
 
 @app.route("/admin/debug_user/<user_id>")
 def admin_debug_user(user_id):
+    import datetime
+    server_now = datetime.datetime.now()
     conn = database.get_connection()
     if not conn:
         return "無法連線資料庫", 500
@@ -1171,10 +1173,10 @@ def admin_debug_user(user_id):
             cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             if not row:
-                return "找不到此用戶", 404
+                return f"找不到此用戶。伺服器時間為: {server_now}", 404
             # 轉換為 dict
             data = dict(row)
-            return f"<h3>用戶 {user_id} 的原始資料庫資料：</h3><pre>{data}</pre>"
+            return f"<h3>用戶 {user_id} 的原始資料庫資料：</h3><pre>{data}</pre><p>伺服器目前時間: {server_now}</p>"
     finally:
         conn.close()
 
