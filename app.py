@@ -1105,6 +1105,35 @@ def handle_image(event):
 
 
 
+@app.route("/admin/lookup/<order_id>")
+def admin_lookup(order_id):
+    order_info = database.get_payment_order(order_id)
+    if not order_info:
+        return f"<h3>找不到此商店訂單編號: {order_id}</h3>", 404
+        
+    user_id = order_info['user_id']
+    plan_id = order_info['plan_id']
+    
+    from datetime import datetime
+    now = datetime.now()
+    month_str = f"{now.year}-{now.month:02d}"
+    user_state = database.get_user_status_data(user_id, month_str)
+    
+    html = f"""
+    <h2>🔍 訂單與客戶對照結果</h2>
+    <p><b>商店訂單編號 (Order ID):</b> {order_id}</p>
+    <p><b>客戶 LINE User ID:</b> {user_id}</p>
+    <p><b>訂購方案 (Plan ID):</b> {plan_id}</p>
+    <hr>
+    <h3>📊 目前該用戶在資料庫的狀態：</h3>
+    <p><b>目前方案等級:</b> {user_state.get('tier', 'FREE')}</p>
+    <p><b>當月方案已用額度:</b> {user_state.get('usage', 0)} 次</p>
+    <p><b>儲值備用點數:</b> {user_state.get('purchased', 0)} 點</p>
+    <p><b>當前客服狀態:</b> {user_state.get('current_mode', 'HUMAN')}</p>
+    <p><b>方案到期時間:</b> {user_state.get('expiry', '無')}</p>
+    """
+    return html
+
 # ==========================================
 # 6. 啟動伺服器
 #cd /Volumes/Work_Drive/東方森煌共用/Senhuang_linebot
