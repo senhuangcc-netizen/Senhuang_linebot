@@ -167,8 +167,10 @@ def decrypt_newebpay_period_response(period_hex, hash_key, hash_iv):
     """
     import json
     try:
+        clean_hex = period_hex.strip().replace("\n", "").replace("\r", "").replace(" ", "")
+        
         # 1. Hex 轉 Bytes
-        encrypted_bytes = bytes.fromhex(period_hex)
+        encrypted_bytes = bytes.fromhex(clean_hex)
         
         # 2. AES CBC 解密
         cipher = AES.new(hash_key.encode('utf-8'), AES.MODE_CBC, hash_iv.encode('utf-8'))
@@ -176,24 +178,34 @@ def decrypt_newebpay_period_response(period_hex, hash_key, hash_iv):
         
         # 3. PKCS7 Unpadding
         decrypted_bytes = unpad(decrypted_padded, 16)
-        decrypted_str = decrypted_bytes.decode('utf-8')
         
-        # 4. 嘗試以 JSON 解析，若失敗則回歸 Query String 解析
+        # 4. 解碼為字串 (安全防錯)
+        try:
+            decrypted_str = decrypted_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            decrypted_str = decrypted_bytes.decode('cp950', errors='ignore')
+            
+        # 5. 嘗試以 JSON 解析，若失敗則回歸 Query String 解析
         try:
             return json.loads(decrypted_str)
         except Exception:
             return dict(urllib.parse.parse_qsl(decrypted_str))
     except Exception as e:
+        import traceback
         print(f"NewebPay Period Decrypt Error: {e}")
+        traceback.print_exc()
         return None
 
 def decrypt_newebpay_response(trade_info_hex, hash_key, hash_iv):
     """
     解密藍新回傳的 TradeInfo
     """
+    import json
     try:
+        clean_hex = trade_info_hex.strip().replace("\n", "").replace("\r", "").replace(" ", "")
+        
         # 1. Hex 轉 Bytes
-        encrypted_bytes = bytes.fromhex(trade_info_hex)
+        encrypted_bytes = bytes.fromhex(clean_hex)
         
         # 2. AES CBC 解密
         cipher = AES.new(hash_key.encode('utf-8'), AES.MODE_CBC, hash_iv.encode('utf-8'))
@@ -202,10 +214,20 @@ def decrypt_newebpay_response(trade_info_hex, hash_key, hash_iv):
         # 3. PKCS7 Unpadding
         decrypted_bytes = unpad(decrypted_padded, 16)
         
-        # 4. 解析 Query String 轉回字典
-        decrypted_str = decrypted_bytes.decode('utf-8')
-        result_params = dict(urllib.parse.parse_qsl(decrypted_str))
-        return result_params
+        # 4. 解碼為字串 (安全防錯)
+        try:
+            decrypted_str = decrypted_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            decrypted_str = decrypted_bytes.decode('cp950', errors='ignore')
+            
+        # 5. 優先以 JSON 解析，失敗則以 Query String 解析
+        try:
+            return json.loads(decrypted_str)
+        except Exception:
+            return dict(urllib.parse.parse_qsl(decrypted_str))
+            
     except Exception as e:
+        import traceback
         print(f"NewebPay Decrypt Error: {e}")
+        traceback.print_exc()
         return None

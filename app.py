@@ -568,6 +568,8 @@ def newebpay_return():
         # 從資料庫抓回對應的 user_id 和 plan_id
         order_info = database.get_payment_order(order_id)
         
+        user_id = None
+        plan_id = None
         if order_info:
             user_id = order_info['user_id']
             plan_id = order_info['plan_id']
