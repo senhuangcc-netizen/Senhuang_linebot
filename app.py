@@ -1134,6 +1134,33 @@ def admin_lookup(order_id):
     """
     return html
 
+@app.route("/admin/upgrade/<user_id>/<tier>")
+def admin_upgrade(user_id, tier):
+    if tier not in ["BASIC", "ADVANCED", "BUSINESS", "FREE"]:
+        return "無效的方案等級", 400
+        
+    database.update_subscription(user_id, tier)
+    
+    # 取得最新額度資訊
+    from datetime import datetime
+    now = datetime.now()
+    month_str = f"{now.year}-{now.month:02d}"
+    user_state = database.get_user_status_data(user_id, month_str)
+    free_limit = int(user_state.get('free_limit', 3))
+    usage = int(user_state.get('usage', 0))
+    purchased = int(user_state.get('purchased', 0))
+    
+    rem_free = max(0, free_limit - usage)
+    
+    msg_text = f"🎉 [系統更新] 感謝您的訂閱！會員方案已開通/升級。\n\n---\n📊 目前最新額度狀態：\n⭐ 會員方案：{tier}\n🎁 當月方案額度剩餘：{rem_free} 次\n🪙 終身可用儲值點數：{purchased} 點"
+    
+    try:
+        line_bot_api.push_message(user_id, TextSendMessage(text=msg_text))
+    except Exception as e:
+        app.logger.error(f"Push message failed: {e}")
+        
+    return f"<h3>成功將用戶 {user_id} 變更為 {tier}！已發送 LINE 通知。</h3>"
+
 # ==========================================
 # 6. 啟動伺服器
 #cd /Volumes/Work_Drive/東方森煌共用/Senhuang_linebot
