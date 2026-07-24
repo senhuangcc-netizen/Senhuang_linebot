@@ -1027,6 +1027,17 @@ def handle_image(event):
     current_mode = database.get_user_mode(user_id)
 
     try:
+        # 檢查照片數量上限 (上限為 8 張)
+        if user_id in user_images:
+            img_count = sum(1 for item in user_images[user_id] if isinstance(item, dict))
+            if img_count >= 8:
+                if current_mode == "AI":
+                    line_bot_api.reply_message(
+                        event.reply_token,
+                        TextSendMessage(text="⚠️ 單次文物健檢的照片上限為 8 張，已達上限，無法再新增照片。\n若已上傳完畢，請輸入『開始健檢』。")
+                    )
+                return
+
         # 取得圖片內容 (不論在哪個模式，都先暫存起來，防呆)
         message_content = line_bot_api.get_message_content(event.message.id)
         image_bytes = b""
