@@ -1161,6 +1161,23 @@ def admin_upgrade(user_id, tier):
         
     return f"<h3>成功將用戶 {user_id} 變更為 {tier}！已發送 LINE 通知。</h3>"
 
+@app.route("/admin/debug_user/<user_id>")
+def admin_debug_user(user_id):
+    conn = database.get_connection()
+    if not conn:
+        return "無法連線資料庫", 500
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                return "找不到此用戶", 404
+            # 轉換為 dict
+            data = dict(row)
+            return f"<h3>用戶 {user_id} 的原始資料庫資料：</h3><pre>{data}</pre>"
+    finally:
+        conn.close()
+
 # ==========================================
 # 6. 啟動伺服器
 #cd /Volumes/Work_Drive/東方森煌共用/Senhuang_linebot
