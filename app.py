@@ -562,9 +562,17 @@ def newebpay_return():
     if not data:
         return "Decrypt Error", 400
         
+    # 加入日誌以利除錯
+    app.logger.info(f"[NewebPay Return] Decrypted Data: {data}")
     status = data.get("Status")
     if status == "SUCCESS":
-        order_id = data.get("MerchantOrderNo")
+        result = data.get("Result") or {}
+        order_id = (
+            result.get("MerchantOrderNo")
+            or data.get("MerchantOrderNo")
+            or result.get("MerOrderNo")
+            or data.get("MerOrderNo")
+        )
         # 從資料庫抓回對應的 user_id 和 plan_id
         order_info = database.get_payment_order(order_id)
         
@@ -623,10 +631,17 @@ def newebpay_period_return():
     if not data:
         return "Decrypt Error", 400
         
+    # 加入日誌以利除錯
+    app.logger.info(f"[NewebPay Period Return] Decrypted Data: {data}")
     status = data.get("Status")
     if status == "SUCCESS":
         result = data.get("Result") or {}
-        order_id = result.get("MerchantOrderNo") or data.get("MerchantOrderNo")
+        order_id = (
+            result.get("MerchantOrderNo")
+            or data.get("MerchantOrderNo")
+            or result.get("MerOrderNo")
+            or data.get("MerOrderNo")
+        )
         
         # 從資料庫抓回對應的 user_id 和 plan_id
         order_info = database.get_payment_order(order_id)
