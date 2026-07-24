@@ -12,7 +12,7 @@ try:
 except Exception:
     pass
 
-from flask import Flask, request, abort, send_from_directory
+from flask import Flask, request, abort, send_from_directory, session, redirect, url_for, render_template_string, jsonify
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
@@ -309,6 +309,7 @@ def check_quota_and_notify(user_id, reply_token):
     return False
 
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "senhuang_secret_key_129847192847")
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -744,6 +745,17 @@ def ecpay_return():
 def handle_message(event):
     user_id = event.source.user_id
     user_msg = event.message.text.strip()
+    
+    # 自動更新/保存使用者暱稱
+    try:
+        stored_name = database.get_user_display_name(user_id)
+        if not stored_name:
+            profile = line_bot_api.get_profile(user_id)
+            display_name = profile.display_name
+            database.update_user_display_name(user_id, display_name)
+    except Exception as e:
+        app.logger.warning(f"Failed to auto-update display name: {e}")
+
     # 1. 關鍵字觸發：價目表 (優先攔截)
     # 只要訊息包含這些字，就直接丟漂亮的卡片，不經過 Gemini
     price_keywords = ["收費", "費用", "價錢", "價目", "多少錢", "價格"]
@@ -1054,6 +1066,16 @@ def handle_image(event):
     user_id = event.source.user_id
     current_mode = database.get_user_mode(user_id)
 
+    # 自動更新/保存使用者暱稱
+    try:
+        stored_name = database.get_user_display_name(user_id)
+        if not stored_name:
+            profile = line_bot_api.get_profile(user_id)
+            display_name = profile.display_name
+            database.update_user_display_name(user_id, display_name)
+    except Exception as e:
+        app.logger.warning(f"Failed to auto-update display name: {e}")
+
     try:
         # 檢查照片數量上限 (上限為 8 張)
         if user_id in user_images:
@@ -1179,6 +1201,137 @@ def admin_debug_user(user_id):
             return f"<h3>用戶 {user_id} 的原始資料庫資料：</h3><pre>{data}</pre><p>伺服器目前時間: {server_now}</p>"
     finally:
         conn.close()
+
+# ==========================================
+# 后台管理系統 (Admin Dashboard)
+# ==========================================
+
+def render_admin(logged_in=False, error=None):
+    users = []
+    orders = []
+    if logged_in:
+        users = database.get_all_users()
+        orders = database.get_all_payment_orders()
+    try:
+        with open("admin.html", "r", encoding="utf-8") as f:
+            template_content = f.read()
+        return render_template_string(template_content, logged_in=logged_in, error=error, users=users, orders=orders)
+    except Exception as e:
+        return f"讀取 admin.html 範本發生錯誤: {e}", 500
+
+@app.route("/admin", methods=["GET"])
+def admin_page():
+    logged_in = session.get("admin_logged_in", False)
+    return render_admin(logged_in=logged_in)
+
+@app.route("/admin/login", methods=["POST"])
+def admin_login():
+    password = request.form.get("password")
+    admin_password = os.getenv("ADMIN_PASSWORD", "senhuangadmin123")
+    if password == admin_password:
+        session["admin_logged_in"] = True
+        return redirect("/admin")
+    else:
+        return render_admin(logged_in=False, error="密碼錯誤，請重新輸入！")
+
+@app.route("/admin/logout", methods=["POST"])
+def admin_logout():
+    session.pop("admin_logged_in", None)
+    return redirect("/admin")
+
+@app.route("/admin/api/toggle_mode", methods=["POST"])
+def admin_api_toggle_mode():
+    if not session.get("admin_logged_in", False):
+        return jsonify({"success": False, "message": "未授權"}), 403
+    
+    data = request.get_json() or {}
+    user_id = data.get("user_id")
+    mode = data.get("mode")
+    if not user_id or mode not in ["AI", "HUMAN"]:
+        return jsonify({"success": False, "message": "無效參數"}), 400
+        
+    try:
+        database.set_user_mode(user_id, mode)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/api/upgrade", methods=["POST"])
+def admin_api_upgrade():
+    if not session.get("admin_logged_in", False):
+        return jsonify({"success": False, "message": "未授權"}), 403
+    
+    data = request.get_json() or {}
+    user_id = data.get("user_id")
+    tier = data.get("tier")
+    points = data.get("points", 0)
+    expiry = data.get("expiry")
+    
+    if not user_id or tier not in ["BASIC", "ADVANCED", "BUSINESS", "FREE"]:
+        return jsonify({"success": False, "message": "參數不正確"}), 400
+        
+    try:
+        # 手動更新使用者狀態
+        database.manual_update_user(user_id, tier, points, expiry)
+        
+        # 取得最新額度資訊並推播通知
+        from datetime import datetime
+        now = datetime.now()
+        month_str = f"{now.year}-{now.month:02d}"
+        user_state = database.get_user_status_data(user_id, month_str)
+        free_limit = int(user_state.get('free_limit', 3))
+        usage = int(user_state.get('usage', 0))
+        purchased = int(user_state.get('purchased', 0))
+        
+        rem_free = max(0, free_limit - usage)
+        msg_text = f"🎉 [系統更新] 感謝您的訂閱！會員方案已手動開通/升級。\n\n---\n📊 目前最新額度狀態：\n⭐ 會員方案：{tier}\n🎁 當月方案額度剩餘：{rem_free} 次\n🪙 終身可用儲值點數：{purchased} 點"
+        
+        try:
+            line_bot_api.push_message(user_id, TextSendMessage(text=msg_text))
+        except Exception as push_err:
+            app.logger.warning(f"Push message failed on manual update: {push_err}")
+            
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/api/broadcast", methods=["POST"])
+def admin_api_broadcast():
+    if not session.get("admin_logged_in", False):
+        return jsonify({"success": False, "message": "未授權"}), 403
+        
+    data = request.get_json() or {}
+    message_text = data.get("message", "").strip()
+    if not message_text:
+        return jsonify({"success": False, "message": "訊息內容不可為空"}), 400
+        
+    try:
+        users = database.get_all_users()
+        user_ids = [u["user_id"] for u in users]
+        if not user_ids:
+            return jsonify({"success": True, "sent_count": 0})
+            
+        # LINE Multicast 限制單次發送最多 500 個 user ID
+        chunk_size = 500
+        sent_count = 0
+        for i in range(0, len(user_ids), chunk_size):
+            chunk = user_ids[i:i + chunk_size]
+            try:
+                line_bot_api.multicast(chunk, TextSendMessage(text=message_text))
+                sent_count += len(chunk)
+            except Exception as multicast_err:
+                app.logger.error(f"Multicast failed for chunk {i}: {multicast_err}")
+                # 若 multicast 失敗，嘗試 fallback 到個別 push_message 確保送達
+                for uid in chunk:
+                    try:
+                        line_bot_api.push_message(uid, TextSendMessage(text=message_text))
+                        sent_count += 1
+                    except Exception as push_err:
+                        app.logger.error(f"Fallback push message failed for {uid}: {push_err}")
+                        
+        return jsonify({"success": True, "sent_count": sent_count})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 # ==========================================
 # 6. 啟動伺服器

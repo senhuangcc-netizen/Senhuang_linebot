@@ -34,6 +34,8 @@ def init_db():
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier TEXT DEFAULT 'FREE';")
             # 擴充新欄位: 訂閱到期日
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expiry TEXT;")
+            # 擴充新欄位: LINE暱稱
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;")
             
             # 建立支付訂單對照表 (用於藍新 NotifyURL 不帶參數時的對照)
             cur.execute('''
@@ -234,5 +236,82 @@ def get_payment_order(order_id):
         with conn.cursor() as cur:
             cur.execute("SELECT user_id, plan_id FROM payment_orders WHERE order_id = %s", (order_id,))
             return cur.fetchone()
+    finally:
+        conn.close()
+
+def manual_update_user(user_id, tier, purchased_quota, subscription_expiry):
+    conn = get_connection()
+    if not conn: return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO users (user_id, subscription_tier, purchased_quota, subscription_expiry)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (user_id) 
+                DO UPDATE SET 
+                    subscription_tier = EXCLUDED.subscription_tier,
+                    purchased_quota = EXCLUDED.purchased_quota,
+                    subscription_expiry = EXCLUDED.subscription_expiry
+            """, (user_id, tier, purchased_quota, subscription_expiry or None))
+        conn.commit()
+    finally:
+        conn.close()
+
+def update_user_display_name(user_id, display_name):
+    conn = get_connection()
+    if not conn: return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO users (user_id, display_name)
+                VALUES (%s, %s)
+                ON CONFLICT (user_id) 
+                DO UPDATE SET display_name = EXCLUDED.display_name
+            """, (user_id, display_name))
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_all_users():
+    conn = get_connection()
+    if not conn: return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT user_id, display_name, current_mode, usage_month, usage_count, purchased_quota, subscription_tier, subscription_expiry 
+                FROM users 
+                ORDER BY subscription_tier DESC, user_id
+            """)
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+def get_all_payment_orders():
+    conn = get_connection()
+    if not conn: return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT p.order_id, p.user_id, p.plan_id, p.created_at, u.display_name
+                FROM payment_orders p
+                LEFT JOIN users u ON p.user_id = u.user_id
+                ORDER BY p.created_at DESC
+            """)
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+def get_user_display_name(user_id):
+    conn = get_connection()
+    if not conn: return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT display_name FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            if row and row['display_name']:
+                return row['display_name']
+            return None
     finally:
         conn.close()
