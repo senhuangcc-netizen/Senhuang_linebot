@@ -20,7 +20,8 @@ from linebot.models import (
     StickerMessage, ImageSendMessage
 )
 from linebot.models import FlexSendMessage, CarouselContainer, BubbleContainer, BoxComponent, TextComponent, SeparatorComponent
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import uuid
 import database
 import newebpay_integration
@@ -321,7 +322,10 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
-genai.configure(api_key=GEMINI_API_KEY)
+client = genai.Client(
+    api_key=GEMINI_API_KEY,
+    http_options=types.HttpOptions(timeout=55000)
+)
 
 # ==========================================
 # 2. 記憶體與 PostgreSQL 資料庫
@@ -416,13 +420,11 @@ SYSTEM_PROMPT = """
 ###DATA:{"title": "青花龍紋花瓶", "prob": "85%", "valuation": "$ 7,000~15,000"}###
 """
 
-model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",
-    generation_config={
-        "temperature": 0.2, # 低隨機性，保持專業
-        "max_output_tokens": 3000,
-    },
-    system_instruction=SYSTEM_PROMPT
+gemini_model_name = "gemini-2.5-flash"
+gemini_config = types.GenerateContentConfig(
+    system_instruction=SYSTEM_PROMPT,
+    temperature=0.2,
+    max_output_tokens=3000
 )
 
 # ==========================================
@@ -885,18 +887,25 @@ def handle_message(event):
                 
                 # 圖片分析改用 generate_content
                 prompt = "請根據這些照片，嚴格依照【AI文物健檢規則與原則】與【Response Format】進行分析。"
-                payload = [prompt] + user_images[user_id]
                 
-                # 抓取第一張上傳的照片 byte data 作為圖卡素材
+                # 構建新版 SDK payload，將圖片字典轉為 types.Part.from_bytes
+                payload = [prompt]
                 first_image_bytes = None
                 for item in user_images[user_id]:
                     if isinstance(item, dict) and "data" in item:
-                        first_image_bytes = item["data"]
-                        break
+                        if first_image_bytes is None:
+                            first_image_bytes = item["data"]
+                        payload.append(types.Part.from_bytes(
+                            data=item["data"],
+                            mime_type=item.get("mime_type", "image/jpeg")
+                        ))
+                    else:
+                        payload.append(item)
                         
-                response = model.generate_content(
-                    payload,
-                    request_options={"timeout": 55}  # 55秒後強制停止，避免 Gunicorn worker 被 SIGKILL
+                response = client.models.generate_content(
+                    model=gemini_model_name,
+                    contents=payload,
+                    config=gemini_config
                 )
                 
                 resp_text = response.text
