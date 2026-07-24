@@ -276,6 +276,37 @@ def get_booking_guide_flex():
         contents=bubble
     )
 
+def check_quota_and_notify(user_id, reply_token):
+    from datetime import datetime
+    now = datetime.now()
+    month_str = f"{now.year}-{now.month:02d}"
+    
+    user_state = database.get_user_status_data(user_id, month_str)
+    free_limit = int(user_state.get('free_limit', 3))
+    usage = int(user_state.get('usage', 0))
+    purchased = int(user_state.get('purchased', 0))
+    
+    if usage >= free_limit and purchased <= 0:
+        railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+        if railway_domain:
+            host = f"https://{railway_domain}"
+        else:
+            from flask import request
+            try:
+                host = request.host_url.rstrip("/")
+            except:
+                host = ""
+        flex_msg = get_subscription_flex(host, user_id)
+        line_bot_api.reply_message(
+            reply_token,
+            [
+                TextSendMessage(text="⚠️ 您的健檢額度已用盡，請參考以下方案擴充您的額度："),
+                flex_msg
+            ]
+        )
+        return True
+    return False
+
 app = Flask(__name__)
 
 from dotenv import load_dotenv
@@ -792,6 +823,8 @@ def handle_message(event):
 
     # 2. 偵測是否要「切換回 AI」
     elif user_msg in ["AI文物健檢", "結束專人", "開啟智能客服"]:
+        if check_quota_and_notify(user_id, event.reply_token):
+            return
         database.set_user_mode(user_id, "AI")
         msg = (
             "🤖 歡迎使用【AI文物健檢】服務！\n\n"
@@ -813,6 +846,8 @@ def handle_message(event):
 
     # 防呆機制：只要輸入「開始健檢」，強制切換至 AI 模式
     if user_msg == "開始健檢":
+        if check_quota_and_notify(user_id, event.reply_token):
+            return
         database.set_user_mode(user_id, "AI")
         current_mode = "AI"
 
@@ -837,28 +872,12 @@ def handle_message(event):
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
                 return
             
-            # ---- 額度檢查 ----
+            # ---- 獲取用戶方案資訊 ----
             from datetime import datetime
             now = datetime.now()
             month_str = f"{now.year}-{now.month:02d}"
-            
             user_state = database.get_user_status_data(user_id, month_str)
-            free_limit = int(user_state.get('free_limit', 3))
-            usage = int(user_state.get('usage', 0))
-            purchased = int(user_state.get('purchased', 0))
             tier = user_state.get('tier', 'FREE')
-            
-            if usage >= free_limit and purchased <= 0:
-                host = request.host_url.rstrip("/")
-                flex_msg = get_subscription_flex(host, user_id)
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    [
-                        TextSendMessage(text="⚠️ 您的健檢額度已用盡，請參考以下方案擴充您的額度："),
-                        flex_msg
-                    ]
-                )
-                return
             
             try:
                 # 告知用戶正在處理
@@ -1031,6 +1050,11 @@ def handle_image(event):
 
         # 只有在 AI 模式下，才回覆確認訊息 (人工模式下保持靜音，但照片已偷偷存好)
         if current_mode == "AI":
+            if check_quota_and_notify(user_id, event.reply_token):
+                # 清空該用戶的暫存照片並退回人工模式
+                user_images[user_id] = []
+                database.set_user_mode(user_id, "HUMAN")
+                return
             msg = f"✅ 已收到照片 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他角度（如底部、特寫）或文字補充嗎？\n若已傳送完畢，請輸入『開始健檢』。"
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
