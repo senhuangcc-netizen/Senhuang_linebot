@@ -225,6 +225,9 @@ def create_payment_order(order_id, user_id, plan_id):
         conn.close()
 
 def get_payment_order(order_id):
+    if order_id and "_" in order_id:
+        order_id = order_id.split("_")[0]
+        
     conn = get_connection()
     if not conn: return None
     try:
