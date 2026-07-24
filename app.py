@@ -914,25 +914,29 @@ def handle_message(event):
                 except Exception as e:
                     app.logger.warning(f"Failed to fetch LINE profile display name: {e}")
 
-                card_filename = ig_card_generator.generate_ig_card(
-                    user_id, title, prob, valuation, first_image_bytes, user_name=display_name
-                )
+                # 判斷是否為拒絕受理的物件
+                is_rejected = "您所上傳的照片不在檢測項目內" in resp_text
+                
+                card_url = None
+                quota_suffix = ""
+                
+                if not is_rejected:
+                    card_filename = ig_card_generator.generate_ig_card(
+                        user_id, title, prob, valuation, first_image_bytes, user_name=display_name
+                    )
+                    # ---- 實際扣除使用次數 ----
+                    success, rem_free, rem_purchased = database.consume_quota(user_id, month_str)
+                    quota_suffix = f"\n\n---\n📊 目前剩餘可健檢額度：\n🎁 本月免費/訂閱額度：{rem_free} 次\n🪙 單筆儲值備用點數：{rem_purchased} 點"
+                    
+                    railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+                    if railway_domain:
+                        host_url = f"https://{railway_domain}"
+                    else:
+                        host_url = request.host_url.rstrip("/")
+                    card_url = f"{host_url}/cards/{card_filename}"
                 
                 # 清空該用戶的暫存照片
                 user_images[user_id] = []
-                
-                # ---- 實際扣除使用次數 ----
-                success, rem_free, rem_purchased = database.consume_quota(user_id, month_str)
-                
-                # 回傳分析結果
-                quota_suffix = f"\n\n---\n📊 目前剩餘可健檢額度：\n🎁 本月免費/訂閱額度：{rem_free} 次\n🪙 單筆儲值備用點數：{rem_purchased} 點"
-                
-                railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
-                if railway_domain:
-                    host_url = f"https://{railway_domain}"
-                else:
-                    host_url = request.host_url.rstrip("/")
-                card_url = f"{host_url}/cards/{card_filename}"
                 
                 # LINE 單則訊息上限 5000 字，超過需要拆分
                 MAX_LEN = 4800  # 留緩衝給 quota_suffix
@@ -964,7 +968,8 @@ def handle_message(event):
                         else:
                             messages_to_send.append(TextSendMessage(text=chunk))
                 
-                messages_to_send.append(ImageSendMessage(original_content_url=card_url, preview_image_url=card_url))
+                if card_url:
+                    messages_to_send.append(ImageSendMessage(original_content_url=card_url, preview_image_url=card_url))
                 
                 line_bot_api.push_message(
                     user_id,
