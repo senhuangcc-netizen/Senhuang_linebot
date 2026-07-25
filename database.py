@@ -150,7 +150,7 @@ def get_user_status_data(user_id, month_str):
                     pass
 
             # 計算當前等級的免費上限
-            limits = {'FREE': 3, 'BASIC': 8, 'ADVANCED': 50, 'BUSINESS': 150}
+            limits = {'FREE': 3, 'BASIC': 8, 'ADVANCED': 50, 'BUSINESS': 150, 'ADMIN': 99999}
             free_limit = limits.get(tier, 3)
 
             # 跨月重置邏輯

@@ -1384,7 +1384,7 @@ def admin_api_upgrade():
     points = data.get("points", 0)
     expiry = data.get("expiry")
     
-    if not user_id or tier not in ["BASIC", "ADVANCED", "BUSINESS", "FREE"]:
+    if not user_id or tier not in ["BASIC", "ADVANCED", "BUSINESS", "FREE", "ADMIN"]:
         return jsonify({"success": False, "message": "參數不正確"}), 400
         
     try:
@@ -1401,7 +1401,8 @@ def admin_api_upgrade():
         purchased = int(user_state.get('purchased', 0))
         
         rem_free = max(0, free_limit - usage)
-        msg_text = f"🎉 [系統更新] 感謝您的訂閱！會員方案已手動開通/升級。\n\n---\n📊 目前最新額度狀態：\n⭐ 會員方案：{tier}\n🎁 當月方案額度剩餘：{rem_free} 次\n🪙 終身可用儲值點數：{purchased} 點"
+        rem_free_str = "無限制" if tier == "ADMIN" else f"{rem_free} 次"
+        msg_text = f"🎉 [系統更新] 感謝您的訂閱！會員方案已手動開通/升級。\n\n---\n📊 目前最新額度狀態：\n⭐ 會員方案：{tier}\n🎁 當月方案額度剩餘：{rem_free_str}\n🪙 終身可用儲值點數：{purchased} 點"
         
         try:
             line_bot_api.push_message(user_id, TextSendMessage(text=msg_text))
