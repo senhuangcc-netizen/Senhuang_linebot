@@ -178,9 +178,9 @@ def get_subscription_flex(host, user_id):
         )
 
     b1 = make_plan_bubble('#7f8c8d', '🪙 單筆儲值', '10 次，永久有效', '無實體送檢折抵', 'NT$ 100', '單次購買', 'point10')
-    b2 = make_plan_bubble('#27ae60', '🌱 小資玩家', '每月 8 件智能健檢', '實體送檢折抵100元/件', 'NT$ 88', '月費，自動續訂', 'basic_single')
-    b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '每月 50 件智能健檢', '實體送檢折抵300元/件', 'NT$ 399', '月費，自動續訂', 'advanced_single')
-    b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '每月 150 件智能健檢', '實體送檢折抵500元/件', 'NT$ 860', '月費，自動續訂', 'business_single')
+    b2 = make_plan_bubble('#27ae60', '🌱 小資玩家', '每月 8 件智能健檢', '實體折抵100元/件(限訂閱一方案)', 'NT$ 88', '月費，自動續訂', 'basic_single')
+    b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '每月 50 件智能健檢', '實體折抵300元/件(限訂閱一方案)', 'NT$ 399', '月費，自動續訂', 'advanced_single')
+    b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '每月 150 件智能健檢', '實體折抵500元/件(限訂閱一方案)', 'NT$ 860', '月費，自動續訂', 'business_single')
 
     return FlexSendMessage(
         alt_text="東方森煌館 付費與訂閱方案",
@@ -556,7 +556,40 @@ def buy(user_id, plan_id):
     }
     if plan_id not in plans:
         return "Invalid Plan", 400
-    
+        
+    if plan_id != "point10":
+        from datetime import datetime
+        now = datetime.now()
+        month_str = f"{now.year}-{now.month:02d}"
+        user_state = database.get_user_status_data(user_id, month_str)
+        tier = user_state.get('tier', 'FREE')
+        if tier not in ["FREE", "ADMIN"]:
+            return """
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>無法重複訂閱</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body { font-family: 'Helvetica Neue', Helvetica, Arial, '微軟正黑體', sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+                    .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; max-width: 90%; width: 400px; }
+                    .icon { font-size: 50px; margin-bottom: 20px; }
+                    h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
+                    p { color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px; }
+                    .btn { display: inline-block; padding: 12px 24px; background-color: #00B900; color: white; text-decoration: none; border-radius: 30px; font-weight: bold; transition: background-color 0.3s; margin-top: 10px; }
+                    .btn:hover { background-color: #009900; }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div class="icon">⚠️</div>
+                    <h1>您已是訂閱會員</h1>
+                    <p>每個帳號僅能訂閱一個方案。<br><br>若需更多額度，請在選單購買「<b>單筆儲值</b>」。<br>若需升級方案，請聯絡官方客服。</p>
+                </div>
+            </body>
+            </html>
+            """, 400
+            
     amount = plans[plan_id]["amount"]
     
     # 產生唯一的訂單編號 (藍新 MerchantOrderNo 限 30 碼內)
@@ -1268,7 +1301,7 @@ def admin_upgrade(user_id, tier):
     
     rem_free = max(0, free_limit - usage)
     
-    msg_text = f"🎉 [系統更新] 感謝您的訂閱！會員方案已開通/升級。\n\n---\n📊 目前最新額度狀態：\n⭐ 會員方案：{tier}\n🎁 當月方案額度剩餘：{rem_free} 次\n🪙 終身可用儲值點數：{purchased} 點"
+    msg_text = f"🎉 [系統更新] 感謝您的訂閱！會員方案已開通/升級。\n(提醒：一個帳號僅能訂閱一個方案，如需更多額度請加購「單筆儲值」點數)\n---\n📊 目前最新額度狀態：\n⭐ 會員方案：{tier}\n🎁 當月方案額度剩餘：{rem_free} 次\n🪙 終身可用儲值點數：{purchased} 點"
     
     try:
         line_bot_api.push_message(user_id, TextSendMessage(text=msg_text))
@@ -1402,7 +1435,7 @@ def admin_api_upgrade():
         
         rem_free = max(0, free_limit - usage)
         rem_free_str = "無限制" if tier == "ADMIN" else f"{rem_free} 次"
-        msg_text = f"🎉 [系統更新] 感謝您的訂閱！會員方案已手動開通/升級。\n\n---\n📊 目前最新額度狀態：\n⭐ 會員方案：{tier}\n🎁 當月方案額度剩餘：{rem_free_str}\n🪙 終身可用儲值點數：{purchased} 點"
+        msg_text = f"🎉 [系統更新] 感謝您的訂閱！會員方案已手動開通/升級。\n(提醒：一個帳號僅能訂閱一個方案，如需更多額度請加購「單筆儲值」點數)\n---\n📊 目前最新額度狀態：\n⭐ 會員方案：{tier}\n🎁 當月方案額度剩餘：{rem_free_str}\n🪙 終身可用儲值點數：{purchased} 點"
         
         try:
             line_bot_api.push_message(user_id, TextSendMessage(text=msg_text))
