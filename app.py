@@ -1535,12 +1535,27 @@ def admin_api_broadcast():
         
     data = request.get_json() or {}
     message_text = data.get("message", "").strip()
+    segment = data.get("segment", "ALL")
     if not message_text:
         return jsonify({"success": False, "message": "訊息內容不可為空"}), 400
         
     try:
         users = database.get_all_users()
-        user_ids = [u["user_id"] for u in users]
+        
+        # Filter users based on segment
+        target_users = []
+        for u in users:
+            tier = u.get("subscription_tier") or "FREE"
+            if segment == "ALL":
+                target_users.append(u)
+            elif segment == "FREE" and tier == "FREE":
+                target_users.append(u)
+            elif segment == "SUBSCRIBED" and tier in ["BASIC", "ADVANCED", "BUSINESS"]:
+                target_users.append(u)
+            elif segment == "BUSINESS" and tier == "BUSINESS":
+                target_users.append(u)
+                
+        user_ids = [u["user_id"] for u in target_users]
         if not user_ids:
             return jsonify({"success": True, "sent_count": 0})
             
@@ -1562,7 +1577,60 @@ def admin_api_broadcast():
                     except Exception as push_err:
                         app.logger.error(f"Fallback push message failed for {uid}: {push_err}")
                         
-        return jsonify({"success": True, "sent_count": sent_count})
+        return jsonify({"success": True, "sent_count": sent_count, "target": segment})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/api/user_profile/<user_id>", methods=["GET"])
+def admin_api_user_profile(user_id):
+    if not session.get("admin_logged_in", False):
+        return jsonify({"success": False, "message": "未授權"}), 403
+    try:
+        diagnoses = database.get_user_diagnoses(user_id)
+        orders = database.get_user_payment_orders(user_id)
+        return jsonify({
+            "success": True,
+            "diagnoses": diagnoses,
+            "orders": orders
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/api/logs", methods=["GET"])
+def admin_api_logs():
+    if not session.get("admin_logged_in", False):
+        return jsonify({"success": False, "message": "未授權"}), 403
+    
+    lines = int(request.args.get("lines", 100))
+    try:
+        app_logs = ""
+        err_logs = ""
+        if os.path.exists("app.log"):
+            with open("app.log", "r", encoding="utf-8") as f:
+                app_logs = "".join(f.readlines()[-lines:])
+        if os.path.exists("err.log"):
+            with open("err.log", "r", encoding="utf-8") as f:
+                err_logs = "".join(f.readlines()[-lines:])
+        
+        return jsonify({
+            "success": True,
+            "app_logs": app_logs,
+            "err_logs": err_logs
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/api/gallery", methods=["GET"])
+def admin_api_gallery():
+    if not session.get("admin_logged_in", False):
+        return jsonify({"success": False, "message": "未授權"}), 403
+    limit = int(request.args.get("limit", 100))
+    try:
+        records = database.get_recent_diagnoses("all", limit=limit)
+        return jsonify({
+            "success": True,
+            "records": records
+        })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 

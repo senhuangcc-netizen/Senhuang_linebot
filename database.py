@@ -353,6 +353,36 @@ def get_all_users():
     finally:
         conn.close()
 
+def get_user_diagnoses(user_id):
+    conn = get_connection()
+    if not conn: return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, category, title, probability, valuation_text, val_min, val_max, card_url, TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI:SS') as formatted_date
+                FROM diagnoses
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+            """, (user_id,))
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+def get_user_payment_orders(user_id):
+    conn = get_connection()
+    if not conn: return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT order_id, plan_id, created_at, trade_no, amount, status, pay_time
+                FROM payment_orders
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+            """, (user_id,))
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
 def get_all_payment_orders():
     conn = get_connection()
     if not conn: return []
