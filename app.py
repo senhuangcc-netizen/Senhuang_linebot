@@ -563,7 +563,7 @@ def buy(user_id, plan_id):
     order_id = "A" + uuid.uuid4().hex[:20]
     
     # 將訂單資訊存入資料庫對照表，避免在網址帶參數導致 SHA 驗證失敗
-    database.create_payment_order(order_id, user_id, plan_id)
+    database.create_payment_order(order_id, user_id, plan_id, amount)
     
     # 動態取得伺服器域名作為 URL (必須是 HTTPS)
     railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
@@ -608,14 +608,14 @@ def newebpay_return():
     # 加入日誌以利除錯
     app.logger.info(f"[NewebPay Return] Decrypted Data: {data}")
     status = data.get("Status")
+    result = data.get("Result") or {}
+    order_id = (
+        result.get("MerchantOrderNo")
+        or data.get("MerchantOrderNo")
+        or result.get("MerOrderNo")
+        or data.get("MerOrderNo")
+    )
     if status == "SUCCESS":
-        result = data.get("Result") or {}
-        order_id = (
-            result.get("MerchantOrderNo")
-            or data.get("MerchantOrderNo")
-            or result.get("MerOrderNo")
-            or data.get("MerOrderNo")
-        )
         # 從資料庫抓回對應的 user_id 和 plan_id
         order_info = database.get_payment_order(order_id)
         
@@ -656,7 +656,25 @@ def newebpay_return():
                 line_bot_api.push_message(user_id, TextSendMessage(text=msg_text))
             except Exception as e:
                 app.logger.error(f"Push message failed: {e}")
-                
+        
+        # 標記訂單為支付成功，並記錄交易資訊
+        database.update_payment_order_status(
+            order_id, 
+            'SUCCESS', 
+            trade_no=result.get("TradeNo"), 
+            pay_time=result.get("PayTime"), 
+            amount=result.get("Amt")
+        )
+    else:
+        # 標記訂單為交易失敗
+        database.update_payment_order_status(
+            order_id, 
+            'FAILED', 
+            trade_no=result.get("TradeNo") or data.get("TradeNo"), 
+            pay_time=result.get("PayTime") or data.get("PayTime"), 
+            amount=result.get("Amt") or data.get("Amt")
+        )
+        
     return "OK"
 
 @app.route("/newebpay/period_return", methods=["POST"])
@@ -677,15 +695,14 @@ def newebpay_period_return():
     # 加入日誌以利除錯
     app.logger.info(f"[NewebPay Period Return] Decrypted Data: {data}")
     status = data.get("Status")
+    result = data.get("Result") or {}
+    order_id = (
+        result.get("MerchantOrderNo")
+        or data.get("MerchantOrderNo")
+        or result.get("MerOrderNo")
+        or data.get("MerOrderNo")
+    )
     if status == "SUCCESS":
-        result = data.get("Result") or {}
-        order_id = (
-            result.get("MerchantOrderNo")
-            or data.get("MerchantOrderNo")
-            or result.get("MerOrderNo")
-            or data.get("MerOrderNo")
-        )
-        
         # 從資料庫抓回對應的 user_id 和 plan_id
         order_info = database.get_payment_order(order_id)
         
@@ -725,6 +742,24 @@ def newebpay_period_return():
                 line_bot_api.push_message(user_id, TextSendMessage(text=msg_text))
             except Exception as e:
                 app.logger.error(f"Push message failed: {e}")
+        
+        # 標記訂單為支付成功，並記錄交易資訊
+        auth_time = result.get("AuthTime") or data.get("AuthTime")
+        auth_amt = result.get("AuthAmt") or data.get("AuthAmt")
+        trade_no = result.get("TradeNo") or data.get("TradeNo")
+        database.update_payment_order_status(
+            order_id, 
+            'SUCCESS', 
+            trade_no=trade_no, 
+            pay_time=auth_time, 
+            amount=auth_amt
+        )
+    else:
+        # 標記訂單為交易失敗
+        database.update_payment_order_status(
+            order_id, 
+            'FAILED'
+        )
                 
     return "OK"
 

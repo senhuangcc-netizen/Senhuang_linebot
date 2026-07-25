@@ -104,29 +104,60 @@
                 <table class="w-full text-left border-collapse" id="ordersTable">
                     <thead>
                         <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-xs font-semibold uppercase tracking-wider">
-                            <th class="px-6 py-4">建立時間</th>
-                            <th class="px-6 py-4">商店訂單編號 (Order ID)</th>
-                            <th class="px-6 py-4">LINE 暱稱</th>
-                            <th class="px-6 py-4">LINE User ID</th>
-                            <th class="px-6 py-4">方案 (Plan ID)</th>
-                            <th class="px-6 py-4 text-right">操作</th>
+                            <th class="px-6 py-4 whitespace-nowrap">建立時間</th>
+                            <th class="px-6 py-4 whitespace-nowrap">商店訂單編號 (Order ID)</th>
+                            <th class="px-6 py-4 whitespace-nowrap">金流交易序號 (Trade No)</th>
+                            <th class="px-6 py-4 whitespace-nowrap">LINE 暱稱 / User ID</th>
+                            <th class="px-6 py-4 whitespace-nowrap">交易金額</th>
+                            <th class="px-6 py-4 whitespace-nowrap">方案 (Plan ID)</th>
+                            <th class="px-6 py-4 whitespace-nowrap">支付狀態</th>
+                            <th class="px-6 py-4 text-right whitespace-nowrap">操作</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-800/50 text-sm">
                         {% for order in orders %}
                         <tr class="hover:bg-slate-850/30 transition">
-                            <td class="px-6 py-4 text-slate-400">{{ order.created_at }}</td>
-                            <td class="px-6 py-4 font-mono text-amber-500 select-all">{{ order.order_id }}</td>
-                            <td class="px-6 py-4">
-                                <span class="font-medium text-slate-200">{{ order.display_name or '(未載入)' }}</span>
+                            <td class="px-6 py-4 text-slate-400 whitespace-nowrap">{{ order.created_at }}</td>
+                            <td class="px-6 py-4 font-mono text-amber-500 select-all whitespace-nowrap">
+                                {{ order.order_id }}{% if order.plan_id != 'point10' %}_1{% endif %}
                             </td>
-                            <td class="px-6 py-4 font-mono text-xs text-slate-400">{{ order.user_id }}</td>
-                            <td class="px-6 py-4">
+                            <td class="px-6 py-4 font-mono text-slate-300 select-all whitespace-nowrap">
+                                {{ order.trade_no or '無' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex flex-col">
+                                    <span class="font-medium text-slate-200">{{ order.display_name or '(未載入)' }}</span>
+                                    <span class="font-mono text-xxs text-slate-500">{{ order.user_id }}</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 font-medium text-slate-300 whitespace-nowrap">
+                                {% if order.amount is not none %}
+                                NT$ {{ order.amount }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-950 text-blue-300 border border-blue-900">
                                     {{ order.plan_id }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-right">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if order.status == 'SUCCESS' %}
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-300 border border-emerald-900">
+                                    已付款
+                                </span>
+                                {% elif order.status == 'FAILED' %}
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-950 text-rose-300 border border-rose-900">
+                                    交易失敗
+                                </span>
+                                {% else %}
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-850 text-slate-400 border border-slate-800">
+                                    未付款/待支付
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-right whitespace-nowrap">
                                 <button onclick="openEditModal('{{ order.user_id }}', '{{ order.display_name or '' }}')" class="text-amber-500 hover:text-amber-400 font-semibold transition">
                                     <i class="fa-solid fa-edit"></i> 管理
                                 </button>
@@ -134,7 +165,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="6" class="px-6 py-8 text-center text-slate-500">無任何訂單紀錄</td>
+                            <td colspan="8" class="px-6 py-8 text-center text-slate-500">無任何訂單紀錄</td>
                         </tr>
                         {% endfor %}
                     </tbody>

@@ -46,6 +46,11 @@ def init_db():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            # 擴充欄位以利追蹤實際金流支付狀態
+            cur.execute("ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS trade_no TEXT;")
+            cur.execute("ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS amount INTEGER;")
+            cur.execute("ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'PENDING';")
+            cur.execute("ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS pay_time TEXT;")
             
             # 建立 A.A.D 歷史檢測紀錄表
             cur.execute('''
@@ -251,12 +256,38 @@ def update_subscription(user_id, tier, expiry_str_or_add_months=1):
     finally:
         conn.close()
 
-def create_payment_order(order_id, user_id, plan_id):
+def create_payment_order(order_id, user_id, plan_id, amount=0):
     conn = get_connection()
     if not conn: return
     try:
         with conn.cursor() as cur:
-            cur.execute("INSERT INTO payment_orders (order_id, user_id, plan_id) VALUES (%s, %s, %s)", (order_id, user_id, plan_id))
+            cur.execute("""
+                INSERT INTO payment_orders (order_id, user_id, plan_id, amount, status) 
+                VALUES (%s, %s, %s, %s, 'PENDING')
+            """, (order_id, user_id, plan_id, amount))
+        conn.commit()
+    finally:
+        conn.close()
+
+def update_payment_order_status(order_id, status, trade_no=None, pay_time=None, amount=None):
+    if order_id and "_" in order_id:
+        order_id = order_id.split("_")[0]
+    conn = get_connection()
+    if not conn: return
+    try:
+        with conn.cursor() as cur:
+            if amount is not None:
+                cur.execute("""
+                    UPDATE payment_orders 
+                    SET status = %s, trade_no = %s, pay_time = %s, amount = %s 
+                    WHERE order_id = %s
+                """, (status, trade_no, pay_time, int(amount), order_id))
+            else:
+                cur.execute("""
+                    UPDATE payment_orders 
+                    SET status = %s, trade_no = %s, pay_time = %s 
+                    WHERE order_id = %s
+                """, (status, trade_no, pay_time, order_id))
         conn.commit()
     finally:
         conn.close()
@@ -328,7 +359,7 @@ def get_all_payment_orders():
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT p.order_id, p.user_id, p.plan_id, p.created_at, u.display_name
+                SELECT p.order_id, p.user_id, p.plan_id, p.created_at, p.trade_no, p.amount, p.status, p.pay_time, u.display_name
                 FROM payment_orders p
                 LEFT JOIN users u ON p.user_id = u.user_id
                 ORDER BY p.created_at DESC
