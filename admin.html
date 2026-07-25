@@ -70,13 +70,13 @@
         {% else %}
         <!-- Dashboard Tabs -->
         <div class="mb-8 border-b border-slate-850 flex space-x-8">
-            <button onclick="switchTab('orders')" id="tab-btn-orders" class="tab-btn pb-4 font-semibold text-sm border-b-2 border-transparent transition active">
+            <button onclick="switchTab('orders')" id="tab-btn-orders" class="tab-btn pb-4 font-semibold text-sm border-b-2 border-transparent transition">
                 <i class="fa-solid fa-list-check mr-2"></i>訂單與客戶對照
             </button>
             <button onclick="switchTab('users')" id="tab-btn-users" class="tab-btn pb-4 font-semibold text-sm border-b-2 border-transparent transition">
                 <i class="fa-solid fa-users mr-2"></i>訂閱與額度明細
             </button>
-            <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="tab-btn pb-4 font-semibold text-sm border-b-2 border-transparent transition">
+            <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="tab-btn pb-4 font-semibold text-sm border-b-2 border-transparent transition active">
                 <i class="fa-solid fa-chart-pie mr-2"></i>數據可視化
             </button>
             <button onclick="switchTab('broadcast')" id="tab-btn-broadcast" class="tab-btn pb-4 font-semibold text-sm border-b-2 border-transparent transition">
@@ -85,7 +85,7 @@
         </div>
 
         <!-- TAB 1: Orders -->
-        <div id="tab-content-orders" class="tab-pane space-y-6">
+        <div id="tab-content-orders" class="tab-pane hidden space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h3 class="text-xl font-bold">訂單與客戶對照表</h3>
@@ -270,7 +270,7 @@
         </div>
 
         <!-- TAB 4: Analytics -->
-        <div id="tab-content-analytics" class="tab-pane hidden space-y-6">
+        <div id="tab-content-analytics" class="tab-pane space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h3 class="text-xl font-bold">A.A.D 健檢數據分析</h3>
@@ -918,11 +918,14 @@
             window.location.href = `/admin/api/export_csv?range=${currentAnalyticsRange}`;
         }
 
-        // On initial page load (if URL query has auto tab or if already logged in)
+        // On initial page load: default to analytics tab, or switch if URL hash specifies another
         document.addEventListener('DOMContentLoaded', () => {
-            const hash = window.location.hash;
-            if (hash === '#analytics') {
-                switchTab('analytics');
+            const hash = window.location.hash.replace('#', '');
+            if (hash && hash !== 'analytics') {
+                switchTab(hash);
+            } else {
+                // Default: analytics tab is already visible, just fetch data
+                fetchAnalytics(currentAnalyticsRange);
             }
         });
         {% endif %}
