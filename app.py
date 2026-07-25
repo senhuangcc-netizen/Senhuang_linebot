@@ -1307,6 +1307,22 @@ def render_admin(logged_in=False, error=None):
     if logged_in:
         users = database.get_all_users()
         orders = database.get_all_payment_orders()
+        
+        # 尋找 display_name 為空的使用者，並從 LINE API 補載入與更新資料庫
+        updated_any = False
+        for u in users:
+            if not u.get('display_name'):
+                try:
+                    profile = line_bot_api.get_profile(u['user_id'])
+                    database.update_user_display_name(u['user_id'], profile.display_name)
+                    u['display_name'] = profile.display_name
+                    updated_any = True
+                except Exception as e:
+                    app.logger.warning(f"Failed to fetch LINE profile for {u['user_id']}: {e}")
+                    
+        if updated_any:
+            orders = database.get_all_payment_orders()
+            
         try:
             analytics = database.get_analytics_summary()
             import json
