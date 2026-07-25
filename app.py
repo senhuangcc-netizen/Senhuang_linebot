@@ -308,6 +308,48 @@ def check_quota_and_notify(user_id, reply_token):
         return True
     return False
 
+def classify_category(title, text):
+    combined = (title + " " + text).lower()
+    if "佛牌" in combined:
+        return "佛牌"
+    elif "玉" in combined:
+        return "玉器"
+    elif any(k in combined for k in ["瓷", "陶", "釉", "罐", "瓶", "碗", "碟", "盞", "杯"]):
+        return "陶瓷"
+    elif any(k in combined for k in ["銅", "金屬", "法器", "法印", "鼎", "爐", "鐵"]):
+        return "銅器"
+    return "其他"
+
+def parse_valuation_numeric(val_str):
+    val_min = 0
+    val_max = 0
+    if not val_str:
+        return val_min, val_max
+    try:
+        clean_str = val_str.replace("TWD", "").replace("USD", "").replace("$", "").replace(" ", "").replace(",", "").strip()
+        if "~" in clean_str:
+            parts = clean_str.split("~", 1)
+            p1, p2 = parts[0], parts[1]
+        else:
+            p1 = p2 = clean_str
+            
+        def to_number(p):
+            multiplier = 1
+            if "萬" in p:
+                multiplier = 10000
+                p = p.replace("萬", "")
+            nums = re.findall(r"[\d\.]+", p)
+            if nums:
+                val = float(nums[0])
+                return int(val * multiplier)
+            return 0
+            
+        val_min = to_number(p1)
+        val_max = to_number(p2)
+    except Exception as e:
+        print(f"Error parsing numeric valuation: {e}")
+    return val_min, val_max
+
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "senhuang_secret_key_129847192847")
 
@@ -998,6 +1040,18 @@ def handle_message(event):
                     else:
                         host_url = request.host_url.rstrip("/")
                     card_url = f"{host_url}/cards/{card_filename}"
+
+                    # ---- 寫入歷史健檢資料 (防禦性異常容錯) ----
+                    try:
+                        cat = classify_category(title, resp_text)
+                        prob_num = 75
+                        prob_clean = prob.replace("%", "").strip()
+                        if prob_clean.isdigit():
+                            prob_num = int(prob_clean)
+                        val_min, val_max = parse_valuation_numeric(valuation)
+                        database.add_diagnosis_record(user_id, display_name, cat, title, prob_num, valuation, val_min, val_max)
+                    except Exception as record_err:
+                        app.logger.error(f"Failed to save diagnosis record: {record_err}")
                 
                 # 清空該用戶的暫存照片
                 user_images[user_id] = []
@@ -1214,13 +1268,20 @@ def admin_debug_user(user_id):
 def render_admin(logged_in=False, error=None):
     users = []
     orders = []
+    analytics_json = "{}"
     if logged_in:
         users = database.get_all_users()
         orders = database.get_all_payment_orders()
+        try:
+            analytics = database.get_analytics_summary()
+            import json
+            analytics_json = json.dumps(analytics, ensure_ascii=False)
+        except Exception as e:
+            app.logger.error(f"Failed to fetch analytics: {e}")
     try:
         with open("admin.html", "r", encoding="utf-8") as f:
             template_content = f.read()
-        return render_template_string(template_content, logged_in=logged_in, error=error, users=users, orders=orders)
+        return render_template_string(template_content, logged_in=logged_in, error=error, users=users, orders=orders, analytics_json=analytics_json)
     except Exception as e:
         return f"讀取 admin.html 範本發生錯誤: {e}", 500
 

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>東方森煌 - 後台管理系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
@@ -74,6 +75,9 @@
             </button>
             <button onclick="switchTab('users')" id="tab-btn-users" class="tab-btn pb-4 font-semibold text-sm border-b-2 border-transparent transition">
                 <i class="fa-solid fa-users mr-2"></i>訂閱與額度明細
+            </button>
+            <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="tab-btn pb-4 font-semibold text-sm border-b-2 border-transparent transition">
+                <i class="fa-solid fa-chart-pie mr-2"></i>數據可視化
             </button>
             <button onclick="switchTab('broadcast')" id="tab-btn-broadcast" class="tab-btn pb-4 font-semibold text-sm border-b-2 border-transparent transition">
                 <i class="fa-solid fa-bullhorn mr-2"></i>LINE 群發廣播
@@ -227,6 +231,75 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- TAB 4: Analytics -->
+        <div id="tab-content-analytics" class="tab-pane hidden space-y-6">
+            <div>
+                <h3 class="text-xl font-bold">A.A.D 健檢數據分析</h3>
+                <p class="text-slate-500 text-sm mt-1">即時統計客戶上傳的文物類別、真假率分佈與預估市值統計</p>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- KPI 1 -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex items-center justify-between">
+                    <div>
+                        <span class="text-slate-550 text-sm font-medium">累計健檢次數</span>
+                        <h4 class="text-3xl font-bold text-slate-100 mt-2" id="kpi-total">0</h4>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 text-2xl">
+                        <i class="fa-solid fa-signature"></i>
+                    </div>
+                </div>
+                <!-- KPI 2 -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex items-center justify-between">
+                    <div>
+                        <span class="text-slate-550 text-sm font-medium">平均真品機率</span>
+                        <h4 class="text-3xl font-bold text-slate-100 mt-2" id="kpi-avg-prob">0%</h4>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 text-2xl">
+                        <i class="fa-solid fa-gauge-high"></i>
+                    </div>
+                </div>
+                <!-- KPI 3 -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex items-center justify-between">
+                    <div>
+                        <span class="text-slate-550 text-sm font-medium">預估文物總市值 (上限)</span>
+                        <h4 class="text-3xl font-bold text-emerald-450 mt-2" id="kpi-total-val">TWD 0</h4>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 text-2xl">
+                        <i class="fa-solid fa-coins"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Chart 1: Donut Chart -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                    <h4 class="text-base font-bold text-slate-200 mb-4 flex items-center">
+                        <i class="fa-solid fa-chart-pie mr-2 text-amber-500"></i> 文物類別分佈
+                    </h4>
+                    <div id="chart-categories" class="w-full"></div>
+                </div>
+
+                <!-- Chart 2: Bar Chart -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                    <h4 class="text-base font-bold text-slate-200 mb-4 flex items-center">
+                        <i class="fa-solid fa-chart-bar mr-2 text-amber-500"></i> 真品率區間分佈
+                    </h4>
+                    <div id="chart-probabilities" class="w-full"></div>
+                </div>
+
+                <!-- Chart 3: Line Chart -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl lg:col-span-2">
+                    <h4 class="text-base font-bold text-slate-200 mb-4 flex items-center">
+                        <i class="fa-solid fa-chart-line mr-2 text-amber-500"></i> 近 30 天健檢量趨勢
+                    </h4>
+                    <div id="chart-timeline" class="w-full"></div>
+                </div>
             </div>
         </div>
 
@@ -506,6 +579,127 @@
                 alert('網路錯誤或超時: ' + err);
             }
         }
+
+        // Initialize Analytics Charts
+        const analyticsData = {{ analytics_json | safe }};
+        
+        // Update KPI values
+        document.getElementById('kpi-total').innerText = analyticsData.total || 0;
+        document.getElementById('kpi-avg-prob').innerText = (analyticsData.avg_prob || 0) + '%';
+        document.getElementById('kpi-total-val').innerText = 'TWD ' + (analyticsData.total_val || 0).toLocaleString();
+
+        // 1. Categories Donut Chart
+        const catKeys = Object.keys(analyticsData.categories || {});
+        const catValues = Object.values(analyticsData.categories || {});
+        
+        const catOptions = {
+            chart: {
+                type: 'donut',
+                height: 320,
+                background: 'transparent',
+                foreColor: '#94a3b8'
+            },
+            theme: {
+                mode: 'dark'
+            },
+            stroke: {
+                show: false
+            },
+            series: catValues.length ? catValues : [0],
+            labels: catKeys.length ? catKeys : ['無資料'],
+            colors: ['#f59e0b', '#3b82f6', '#10b981', '#a855f7', '#64748b'],
+            legend: {
+                position: 'bottom'
+            },
+            plotOptions: {
+                pie: {
+                    donut: {
+                        size: '70%',
+                        background: 'transparent'
+                    }
+                }
+            }
+        };
+        const catChart = new ApexCharts(document.querySelector("#chart-categories"), catOptions);
+        catChart.render();
+
+        // 2. Probabilities Bar Chart
+        const probRanges = ['10%-30%', '30%-50%', '50%-70%', '70%-85%', '85%-95%'];
+        const probValues = probRanges.map(r => (analyticsData.probabilities || {})[r] || 0);
+
+        const probOptions = {
+            chart: {
+                type: 'bar',
+                height: 320,
+                background: 'transparent',
+                foreColor: '#94a3b8',
+                toolbar: { show: false }
+            },
+            theme: {
+                mode: 'dark'
+            },
+            series: [{
+                name: '數量',
+                data: probValues
+            }],
+            xaxis: {
+                categories: probRanges
+            },
+            colors: ['#d97706'],
+            plotOptions: {
+                bar: {
+                    borderRadius: 6,
+                    columnWidth: '50%'
+                }
+            },
+            dataLabels: {
+                enabled: true,
+                style: {
+                    colors: ['#fff']
+                }
+            }
+        };
+        const probChart = new ApexCharts(document.querySelector("#chart-probabilities"), probOptions);
+        probChart.render();
+
+        // 3. Timeline Line Chart
+        const timelineData = analyticsData.timeline || [];
+        const timeDates = timelineData.map(item => item.date);
+        const timeCounts = timelineData.map(item => item.count);
+
+        const timeOptions = {
+            chart: {
+                type: 'line',
+                height: 300,
+                background: 'transparent',
+                foreColor: '#94a3b8',
+                toolbar: { show: false }
+            },
+            theme: {
+                mode: 'dark'
+            },
+            stroke: {
+                curve: 'smooth',
+                width: 3
+            },
+            series: [{
+                name: '健檢次數',
+                data: timeCounts.length ? timeCounts : [0]
+            }],
+            xaxis: {
+                categories: timeDates.length ? timeDates : ['無資料'],
+                type: 'datetime'
+            },
+            colors: ['#10b981'],
+            markers: {
+                size: 4
+            },
+            grid: {
+                borderColor: '#334155'
+            }
+        };
+        const timeChart = new ApexCharts(document.querySelector("#chart-timeline"), timeOptions);
+        timeChart.render();
         {% endif %}
     </script>
 </body>

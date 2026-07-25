@@ -46,6 +46,22 @@ def init_db():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            
+            # 建立 A.A.D 歷史檢測紀錄表
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS diagnosis_records (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    display_name TEXT,
+                    category TEXT,
+                    title TEXT,
+                    probability INTEGER,
+                    valuation_text TEXT,
+                    val_min BIGINT,
+                    val_max BIGINT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
         conn.commit()
         print("Database initialized successfully.")
     except Exception as e:
@@ -313,5 +329,79 @@ def get_user_display_name(user_id):
             if row and row['display_name']:
                 return row['display_name']
             return None
+    finally:
+        conn.close()
+
+def add_diagnosis_record(user_id, display_name, category, title, probability, valuation_text, val_min, val_max):
+    conn = get_connection()
+    if not conn: return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO diagnosis_records (user_id, display_name, category, title, probability, valuation_text, val_min, val_max)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (user_id, display_name, category, title, probability, valuation_text, val_min, val_max))
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_analytics_summary():
+    conn = get_connection()
+    if not conn:
+        return {"total": 0, "avg_prob": 0, "total_val": 0, "categories": {}, "probabilities": {}, "timeline": []}
+    try:
+        with conn.cursor() as cur:
+            # 1. 基礎指標
+            cur.execute("SELECT COUNT(*), COALESCE(AVG(probability), 0), COALESCE(SUM(val_max), 0) FROM diagnosis_records")
+            row = cur.fetchone()
+            total = row[0] or 0
+            avg_prob = row[1] or 0
+            total_val = row[2] or 0
+            
+            # 2. 分類統計
+            cur.execute("SELECT category, COUNT(*) FROM diagnosis_records GROUP BY category")
+            categories = {r[0] or "其他": r[1] for r in cur.fetchall()}
+            
+            # 3. 機率區間統計
+            cur.execute("""
+                SELECT 
+                    CASE 
+                        WHEN probability < 30 THEN '10%-30%'
+                        WHEN probability < 50 THEN '30%-50%'
+                        WHEN probability < 70 THEN '50%-70%'
+                        WHEN probability < 85 THEN '70%-85%'
+                        ELSE '85%-95%'
+                    END as prob_range,
+                    COUNT(*)
+                FROM diagnosis_records
+                GROUP BY 
+                    CASE 
+                        WHEN probability < 30 THEN '10%-30%'
+                        WHEN probability < 50 THEN '30%-50%'
+                        WHEN probability < 70 THEN '50%-70%'
+                        WHEN probability < 85 THEN '70%-85%'
+                        ELSE '85%-95%'
+                    END
+            """)
+            probabilities = {r[0]: r[1] for r in cur.fetchall()}
+            
+            # 4. 每日趨勢 (近 30 天)
+            cur.execute("""
+                SELECT TO_CHAR(created_at, 'YYYY-MM-DD') as date, COUNT(*)
+                FROM diagnosis_records
+                WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
+                ORDER BY date ASC
+            """)
+            timeline = [{"date": r[0], "count": r[1]} for r in cur.fetchall()]
+            
+            return {
+                "total": total,
+                "avg_prob": round(float(avg_prob), 1),
+                "total_val": int(total_val),
+                "categories": categories,
+                "probabilities": probabilities,
+                "timeline": timeline
+            }
     finally:
         conn.close()
