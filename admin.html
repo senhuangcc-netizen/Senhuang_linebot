@@ -236,9 +236,24 @@
 
         <!-- TAB 4: Analytics -->
         <div id="tab-content-analytics" class="tab-pane hidden space-y-6">
-            <div>
-                <h3 class="text-xl font-bold">A.A.D 健檢數據分析</h3>
-                <p class="text-slate-500 text-sm mt-1">即時統計客戶上傳的文物類別、真假率分佈與預估市值統計</p>
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h3 class="text-xl font-bold">A.A.D 健檢數據分析</h3>
+                    <p class="text-slate-500 text-sm mt-1">即時統計客戶上傳的文物類別、真假率分佈與預估市值統計</p>
+                </div>
+            </div>
+
+            <!-- Date Filter & CSV Export Bar -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-900 border border-slate-800 rounded-xl p-4 gap-4">
+                <div class="flex flex-wrap gap-2" id="analytics-date-picker">
+                    <button onclick="setAnalyticsRange('today')" class="range-btn px-4 py-2 rounded-lg text-xs font-semibold bg-slate-950 border border-slate-850 hover:bg-slate-850 text-slate-400 transition" id="range-today">今日</button>
+                    <button onclick="setAnalyticsRange('7days')" class="range-btn px-4 py-2 rounded-lg text-xs font-semibold bg-slate-950 border border-slate-850 hover:bg-slate-850 text-slate-400 transition" id="range-7days">近 7 天</button>
+                    <button onclick="setAnalyticsRange('30days')" class="range-btn px-4 py-2 rounded-lg text-xs font-semibold bg-amber-600 border border-amber-600 hover:bg-amber-500 text-slate-950 transition" id="range-30days">近 30 天</button>
+                    <button onclick="setAnalyticsRange('all')" class="range-btn px-4 py-2 rounded-lg text-xs font-semibold bg-slate-950 border border-slate-850 hover:bg-slate-850 text-slate-400 transition" id="range-all">所有時間</button>
+                </div>
+                <button onclick="exportAnalyticsCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs flex items-center shadow transition">
+                    <i class="fa-solid fa-file-csv mr-1.5 text-sm"></i> 匯出健檢 CSV 報表
+                </button>
             </div>
 
             <!-- KPI Cards -->
@@ -296,9 +311,52 @@
                 <!-- Chart 3: Line Chart -->
                 <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl lg:col-span-2">
                     <h4 class="text-base font-bold text-slate-200 mb-4 flex items-center">
-                        <i class="fa-solid fa-chart-line mr-2 text-amber-500"></i> 近 30 天健檢量趨勢
+                        <i class="fa-solid fa-chart-line mr-2 text-amber-500"></i> 健檢量趨勢
                     </h4>
                     <div id="chart-timeline" class="w-full"></div>
+                </div>
+            </div>
+
+            <!-- Detailed Data Grid & VIP Leaderboard -->
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <!-- Recent Appraisals (Data Grid) -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl xl:col-span-2 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-base font-bold text-slate-200 flex items-center">
+                            <i class="fa-solid fa-clock-rotate-left mr-2 text-amber-500"></i> 最近健檢明細
+                        </h4>
+                        <span class="text-xs text-slate-500" id="recent-count">顯示最新 50 筆</span>
+                    </div>
+                    <!-- Records Table -->
+                    <div class="overflow-x-auto rounded-xl border border-slate-800">
+                        <table class="w-full text-left border-collapse" id="recentAppraisalsTable">
+                            <thead>
+                                <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                                    <th class="px-4 py-3">時間</th>
+                                    <th class="px-4 py-3">藏家暱稱</th>
+                                    <th class="px-4 py-3">分類</th>
+                                    <th class="px-4 py-3">文物名稱</th>
+                                    <th class="px-4 py-3">真品率</th>
+                                    <th class="px-4 py-3">估值區間</th>
+                                    <th class="px-4 py-3 text-center">評分卡</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/40 text-xs text-slate-300" id="recent-records-tbody">
+                                <!-- Loaded dynamically via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- VIP Collector Leaderboard (Top 10) -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                    <h4 class="text-base font-bold text-slate-200 flex items-center">
+                        <i class="fa-solid fa-crown mr-2 text-amber-500"></i> 核心大藏家排行榜 (Top 10)
+                    </h4>
+                    <!-- Leaderboard list -->
+                    <div class="divide-y divide-slate-800/40" id="vip-leaderboard-list">
+                        <!-- Loaded dynamically via JS -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -420,6 +478,9 @@
             if (targetBtn && targetPane) {
                 targetBtn.classList.add('active');
                 targetPane.classList.remove('hidden');
+            }
+            if (tabId === 'analytics') {
+                fetchAnalytics(currentAnalyticsRange);
             }
         }
 
@@ -580,126 +641,254 @@
             }
         }
 
-        // Initialize Analytics Charts
-        const analyticsData = {{ analytics_json | safe }};
-        
-        // Update KPI values
-        document.getElementById('kpi-total').innerText = analyticsData.total || 0;
-        document.getElementById('kpi-avg-prob').innerText = (analyticsData.avg_prob || 0) + '%';
-        document.getElementById('kpi-total-val').innerText = 'TWD ' + (analyticsData.total_val || 0).toLocaleString();
+        // Initialize Analytics Charts & Dynamic Updates
+        let currentAnalyticsRange = '30days';
+        let catChart = null;
+        let probChart = null;
+        let timeChart = null;
 
-        // 1. Categories Donut Chart
-        const catKeys = Object.keys(analyticsData.categories || {});
-        const catValues = Object.values(analyticsData.categories || {});
-        
-        const catOptions = {
-            chart: {
-                type: 'donut',
-                height: 320,
-                background: 'transparent',
-                foreColor: '#94a3b8'
-            },
-            theme: {
-                mode: 'dark'
-            },
-            stroke: {
-                show: false
-            },
-            series: catValues.length ? catValues : [0],
-            labels: catKeys.length ? catKeys : ['無資料'],
-            colors: ['#f59e0b', '#3b82f6', '#10b981', '#a855f7', '#64748b'],
-            legend: {
-                position: 'bottom'
-            },
-            plotOptions: {
-                pie: {
-                    donut: {
-                        size: '70%',
-                        background: 'transparent'
-                    }
+        async function fetchAnalytics(range) {
+            try {
+                const response = await fetch(`/admin/api/analytics?range=${range}`);
+                const res = await response.json();
+                if (!res.success) {
+                    console.error("Failed to load analytics:", res.message);
+                    return;
                 }
-            }
-        };
-        const catChart = new ApexCharts(document.querySelector("#chart-categories"), catOptions);
-        catChart.render();
+                
+                const data = res.summary;
+                const recent = res.recent;
+                const vip = res.vip;
 
-        // 2. Probabilities Bar Chart
-        const probRanges = ['10%-30%', '30%-50%', '50%-70%', '70%-85%', '85%-95%'];
-        const probValues = probRanges.map(r => (analyticsData.probabilities || {})[r] || 0);
+                // 1. Update KPI values
+                document.getElementById('kpi-total').innerText = data.total || 0;
+                document.getElementById('kpi-avg-prob').innerText = (data.avg_prob || 0) + '%';
+                document.getElementById('kpi-total-val').innerText = 'TWD ' + (data.total_val || 0).toLocaleString();
 
-        const probOptions = {
-            chart: {
-                type: 'bar',
-                height: 320,
-                background: 'transparent',
-                foreColor: '#94a3b8',
-                toolbar: { show: false }
-            },
-            theme: {
-                mode: 'dark'
-            },
-            series: [{
-                name: '數量',
-                data: probValues
-            }],
-            xaxis: {
-                categories: probRanges
-            },
-            colors: ['#d97706'],
-            plotOptions: {
-                bar: {
-                    borderRadius: 6,
-                    columnWidth: '50%'
+                // 2. Categories Donut Chart
+                const catKeys = Object.keys(data.categories || {});
+                const catValues = Object.values(data.categories || {});
+                const updatedCatSeries = catValues.length ? catValues : [0];
+                const updatedCatLabels = catKeys.length ? catKeys : ['無資料'];
+                
+                if (catChart) {
+                    catChart.updateOptions({
+                        series: updatedCatSeries,
+                        labels: updatedCatLabels
+                    });
+                } else {
+                    const catOptions = {
+                        chart: {
+                            type: 'donut',
+                            height: 320,
+                            background: 'transparent',
+                            foreColor: '#94a3b8'
+                        },
+                        theme: { mode: 'dark' },
+                        stroke: { show: false },
+                        series: updatedCatSeries,
+                        labels: updatedCatLabels,
+                        colors: ['#f59e0b', '#3b82f6', '#10b981', '#a855f7', '#64748b'],
+                        legend: { position: 'bottom' },
+                        plotOptions: {
+                            pie: {
+                                donut: {
+                                    size: '70%',
+                                    background: 'transparent'
+                                }
+                            }
+                        }
+                    };
+                    catChart = new ApexCharts(document.querySelector("#chart-categories"), catOptions);
+                    catChart.render();
                 }
-            },
-            dataLabels: {
-                enabled: true,
-                style: {
-                    colors: ['#fff']
+
+                // 3. Probabilities Bar Chart
+                const probRanges = ['10%-30%', '30%-50%', '50%-70%', '70%-85%', '85%-95%'];
+                const probValues = probRanges.map(r => (data.probabilities || {})[r] || 0);
+
+                if (probChart) {
+                    probChart.updateSeries([{
+                        name: '數量',
+                        data: probValues
+                    }]);
+                } else {
+                    const probOptions = {
+                        chart: {
+                            type: 'bar',
+                            height: 320,
+                            background: 'transparent',
+                            foreColor: '#94a3b8',
+                            toolbar: { show: false }
+                        },
+                        theme: { mode: 'dark' },
+                        series: [{
+                            name: '數量',
+                            data: probValues
+                        }],
+                        xaxis: { categories: probRanges },
+                        colors: ['#d97706'],
+                        plotOptions: {
+                            bar: {
+                                borderRadius: 6,
+                                columnWidth: '50%'
+                            }
+                        },
+                        dataLabels: {
+                            enabled: true,
+                            style: { colors: ['#fff'] }
+                        }
+                    };
+                    probChart = new ApexCharts(document.querySelector("#chart-probabilities"), probOptions);
+                    probChart.render();
                 }
-            }
-        };
-        const probChart = new ApexCharts(document.querySelector("#chart-probabilities"), probOptions);
-        probChart.render();
 
-        // 3. Timeline Line Chart
-        const timelineData = analyticsData.timeline || [];
-        const timeDates = timelineData.map(item => item.date);
-        const timeCounts = timelineData.map(item => item.count);
+                // 4. Render Timeline Line Chart
+                const timelineData = data.timeline || [];
+                const timeDates = timelineData.map(item => item.date);
+                const timeCounts = timelineData.map(item => item.count);
+                const updatedTimeCounts = timeCounts.length ? timeCounts : [0];
+                const updatedTimeDates = timeDates.length ? timeDates : ['無資料'];
 
-        const timeOptions = {
-            chart: {
-                type: 'line',
-                height: 300,
-                background: 'transparent',
-                foreColor: '#94a3b8',
-                toolbar: { show: false }
-            },
-            theme: {
-                mode: 'dark'
-            },
-            stroke: {
-                curve: 'smooth',
-                width: 3
-            },
-            series: [{
-                name: '健檢次數',
-                data: timeCounts.length ? timeCounts : [0]
-            }],
-            xaxis: {
-                categories: timeDates.length ? timeDates : ['無資料'],
-                type: 'datetime'
-            },
-            colors: ['#10b981'],
-            markers: {
-                size: 4
-            },
-            grid: {
-                borderColor: '#334155'
+                if (timeChart) {
+                    timeChart.updateOptions({
+                        series: [{
+                            name: '健檢次數',
+                            data: updatedTimeCounts
+                        }],
+                        xaxis: { categories: updatedTimeDates }
+                    });
+                } else {
+                    const timeOptions = {
+                        chart: {
+                            type: 'line',
+                            height: 300,
+                            background: 'transparent',
+                            foreColor: '#94a3b8',
+                            toolbar: { show: false }
+                        },
+                        theme: { mode: 'dark' },
+                        stroke: { curve: 'smooth', width: 3 },
+                        series: [{
+                            name: '健檢次數',
+                            data: updatedTimeCounts
+                        }],
+                        xaxis: {
+                            categories: updatedTimeDates,
+                            type: 'datetime'
+                        },
+                        colors: ['#10b981'],
+                        markers: { size: 4 },
+                        grid: { borderColor: '#334155' }
+                    };
+                    timeChart = new ApexCharts(document.querySelector("#chart-timeline"), timeOptions);
+                    timeChart.render();
+                }
+
+                // 5. Render Recent Appraisals Data Grid
+                const recordsTbody = document.getElementById('recent-records-tbody');
+                recordsTbody.innerHTML = '';
+                if (recent && recent.length) {
+                    recent.forEach(r => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-slate-850/20 transition';
+                        
+                        let catBg = 'bg-slate-950 text-slate-400 border-slate-800';
+                        if (r.category === '陶瓷') catBg = 'bg-amber-950/60 text-amber-300 border-amber-900/50';
+                        else if (r.category === '佛牌') catBg = 'bg-purple-950/60 text-purple-300 border-purple-900/50';
+                        else if (r.category === '玉器') catBg = 'bg-emerald-950/60 text-emerald-300 border-emerald-900/50';
+                        else if (r.category === '銅器') catBg = 'bg-blue-950/60 text-blue-300 border-blue-900/50';
+
+                        let cardButton = `<span class="text-slate-600">無卡片</span>`;
+                        if (r.card_filename) {
+                            cardButton = `<a href="/cards/${r.card_filename}" target="_blank" class="text-amber-500 hover:text-amber-400 font-semibold transition flex items-center justify-center gap-1"><i class="fa-solid fa-image"></i> 預覽</a>`;
+                        }
+
+                        tr.innerHTML = `
+                            <td class="px-4 py-3 text-slate-500 font-mono">${r.formatted_date}</td>
+                            <td class="px-4 py-3 font-semibold text-slate-200">${r.display_name || '隱藏藏家'}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${catBg}">${r.category || '其他'}</span>
+                            </td>
+                            <td class="px-4 py-3 text-slate-100 max-w-[120px] truncate">${r.title || '古文物'}</td>
+                            <td class="px-4 py-3 font-bold text-amber-500">${r.probability}%</td>
+                            <td class="px-4 py-3 font-mono text-emerald-450">${r.valuation_text || '無'}</td>
+                            <td class="px-4 py-3 text-center">${cardButton}</td>
+                        `;
+                        recordsTbody.appendChild(tr);
+                    });
+                } else {
+                    recordsTbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-slate-600">目前區間無健檢紀錄</td></tr>`;
+                }
+
+                // 6. Render VIP Leaderboard
+                const vipList = document.getElementById('vip-leaderboard-list');
+                vipList.innerHTML = '';
+                if (vip && vip.length) {
+                    vip.forEach((v, index) => {
+                        const item = document.createElement('div');
+                        item.className = 'flex items-center justify-between py-3 hover:bg-slate-850/10 px-2 rounded-lg transition';
+                        
+                        let rankBadge = `<span class="w-5 h-5 rounded-full flex items-center justify-center bg-slate-850 text-slate-400 text-xs font-bold mr-3">${index + 1}</span>`;
+                        if (index === 0) rankBadge = `<span class="w-5 h-5 rounded-full flex items-center justify-center bg-yellow-500 text-slate-950 text-xs font-bold mr-3"><i class="fa-solid fa-crown"></i></span>`;
+                        else if (index === 1) rankBadge = `<span class="w-5 h-5 rounded-full flex items-center justify-center bg-slate-300 text-slate-950 text-xs font-bold mr-3">${index + 2}</span>`;
+                        else if (index === 2) rankBadge = `<span class="w-5 h-5 rounded-full flex items-center justify-center bg-amber-700 text-slate-100 text-xs font-bold mr-3">${index + 3}</span>`;
+
+                        let tierTag = `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-950 text-slate-400 border border-slate-800">FREE</span>`;
+                        if (v.subscription_tier === 'ADVANCED') tierTag = `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950 text-amber-300 border border-amber-900/50">ADVANCED</span>`;
+                        else if (v.subscription_tier === 'BUSINESS') tierTag = `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-950 text-purple-300 border border-purple-900/50">BUSINESS</span>`;
+                        else if (v.subscription_tier === 'BASIC') tierTag = `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-950 text-blue-300 border border-blue-900/50">BASIC</span>`;
+
+                        item.innerHTML = `
+                            <div class="flex items-center">
+                                ${rankBadge}
+                                <div>
+                                    <span class="font-medium text-slate-200 text-sm block">${v.display_name || '隱藏藏家'}</span>
+                                    <span class="text-[10px] text-slate-500 font-mono">${v.user_id.substring(0, 10)}...</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                ${tierTag}
+                                <span class="text-xs font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded">${v.count} 次</span>
+                            </div>
+                        `;
+                        vipList.appendChild(item);
+                    });
+                } else {
+                    vipList.innerHTML = `<div class="py-6 text-center text-slate-650 text-sm">暫無大藏家數據</div>`;
+                }
+
+            } catch (err) {
+                console.error("Error fetching analytics:", err);
             }
-        };
-        const timeChart = new ApexCharts(document.querySelector("#chart-timeline"), timeOptions);
-        timeChart.render();
+        }
+
+        function setAnalyticsRange(range) {
+            currentAnalyticsRange = range;
+            
+            document.querySelectorAll('#analytics-date-picker .range-btn').forEach(btn => {
+                btn.className = "range-btn px-4 py-2 rounded-lg text-xs font-semibold bg-slate-950 border border-slate-850 hover:bg-slate-800 text-slate-400 transition";
+            });
+            
+            const activeBtn = document.getElementById('range-' + range);
+            if (activeBtn) {
+                activeBtn.className = "range-btn px-4 py-2 rounded-lg text-xs font-semibold bg-amber-600 border border-amber-600 hover:bg-amber-500 text-slate-950 transition";
+            }
+            
+            fetchAnalytics(range);
+        }
+
+        function exportAnalyticsCSV() {
+            window.location.href = `/admin/api/export_csv?range=${currentAnalyticsRange}`;
+        }
+
+        // On initial page load (if URL query has auto tab or if already logged in)
+        document.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash;
+            if (hash === '#analytics') {
+                switchTab('analytics');
+            }
+        });
         {% endif %}
     </script>
 </body>

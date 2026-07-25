@@ -12,7 +12,7 @@ try:
 except Exception:
     pass
 
-from flask import Flask, request, abort, send_from_directory, session, redirect, url_for, render_template_string, jsonify
+from flask import Flask, request, abort, send_from_directory, session, redirect, url_for, render_template_string, jsonify, Response
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
@@ -1049,7 +1049,7 @@ def handle_message(event):
                         if prob_clean.isdigit():
                             prob_num = int(prob_clean)
                         val_min, val_max = parse_valuation_numeric(valuation)
-                        database.add_diagnosis_record(user_id, display_name, cat, title, prob_num, valuation, val_min, val_max)
+                        database.add_diagnosis_record(user_id, display_name, cat, title, prob_num, valuation, val_min, val_max, card_filename)
                     except Exception as record_err:
                         app.logger.error(f"Failed to save diagnosis record: {record_err}")
                 
@@ -1398,6 +1398,74 @@ def admin_api_broadcast():
         return jsonify({"success": True, "sent_count": sent_count})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/api/analytics", methods=["GET"])
+def admin_api_analytics():
+    if not session.get("admin_logged_in", False):
+        return jsonify({"success": False, "message": "未授權"}), 403
+        
+    date_range = request.args.get("range", "30days")
+    if date_range not in ["today", "7days", "30days", "month", "all"]:
+        date_range = "30days"
+        
+    try:
+        summary = database.get_analytics_summary(date_range)
+        recent = database.get_recent_diagnoses(date_range, limit=50)
+        vip = database.get_vip_leaderboard(limit=10)
+        return jsonify({
+            "success": True,
+            "summary": summary,
+            "recent": recent,
+            "vip": vip
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/api/export_csv", methods=["GET"])
+def admin_api_export_csv():
+    if not session.get("admin_logged_in", False):
+        return "未授權", 403
+        
+    date_range = request.args.get("range", "all")
+    if date_range not in ["today", "7days", "30days", "month", "all"]:
+        date_range = "all"
+        
+    try:
+        records = database.get_recent_diagnoses(date_range, limit=5000)
+        
+        import csv
+        import io
+        
+        output = io.StringIO()
+        output.write('\ufeff')
+        
+        writer = csv.writer(output)
+        writer.writerow([
+            "紀錄編號", "LINE使用者ID", "LINE暱稱", "類別", "文物名稱", 
+            "真品機率", "估值區間描述", "估值下限(TWD)", "估值上限(TWD)", "鑑定時間"
+        ])
+        
+        for r in records:
+            writer.writerow([
+                r.get("id"),
+                r.get("user_id"),
+                r.get("display_name") or "隱藏藏家",
+                r.get("category") or "其他",
+                r.get("title") or "古文物",
+                f"{r.get('probability')}%",
+                r.get("valuation_text"),
+                r.get("val_min"),
+                r.get("val_max"),
+                r.get("formatted_date")
+            ])
+            
+        output.seek(0)
+        
+        response = Response(output.getvalue(), mimetype="text/csv")
+        response.headers["Content-Disposition"] = f"attachment; filename=aad_analytics_export_{date_range}.csv"
+        return response
+    except Exception as e:
+        return f"匯出 CSV 失敗: {e}", 500
 
 # ==========================================
 # 6. 啟動伺服器

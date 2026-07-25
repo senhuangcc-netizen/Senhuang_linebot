@@ -62,6 +62,8 @@ def init_db():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            # 擴充新欄位: 健檢評分卡圖片檔名
+            cur.execute("ALTER TABLE diagnosis_records ADD COLUMN IF NOT EXISTS card_filename TEXT;")
         conn.commit()
         print("Database initialized successfully.")
     except Exception as e:
@@ -332,38 +334,49 @@ def get_user_display_name(user_id):
     finally:
         conn.close()
 
-def add_diagnosis_record(user_id, display_name, category, title, probability, valuation_text, val_min, val_max):
+def add_diagnosis_record(user_id, display_name, category, title, probability, valuation_text, val_min, val_max, card_filename=None):
     conn = get_connection()
     if not conn: return
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO diagnosis_records (user_id, display_name, category, title, probability, valuation_text, val_min, val_max)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (user_id, display_name, category, title, probability, valuation_text, val_min, val_max))
+                INSERT INTO diagnosis_records (user_id, display_name, category, title, probability, valuation_text, val_min, val_max, card_filename)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (user_id, display_name, category, title, probability, valuation_text, val_min, val_max, card_filename))
         conn.commit()
     finally:
         conn.close()
 
-def get_analytics_summary():
+def get_analytics_summary(date_range='30days'):
     conn = get_connection()
     if not conn:
         return {"total": 0, "avg_prob": 0, "total_val": 0, "categories": {}, "probabilities": {}, "timeline": []}
+        
+    time_filter = ""
+    if date_range == 'today':
+        time_filter = "WHERE created_at >= CURRENT_DATE"
+    elif date_range == '7days':
+        time_filter = "WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'"
+    elif date_range == '30days':
+        time_filter = "WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'"
+    elif date_range == 'month':
+        time_filter = "WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)"
+        
     try:
         with conn.cursor() as cur:
             # 1. 基礎指標
-            cur.execute("SELECT COUNT(*), COALESCE(AVG(probability), 0), COALESCE(SUM(val_max), 0) FROM diagnosis_records")
+            cur.execute(f"SELECT COUNT(*), COALESCE(AVG(probability), 0), COALESCE(SUM(val_max), 0) FROM diagnosis_records {time_filter}")
             row = cur.fetchone()
             total = row[0] or 0
             avg_prob = row[1] or 0
             total_val = row[2] or 0
             
             # 2. 分類統計
-            cur.execute("SELECT category, COUNT(*) FROM diagnosis_records GROUP BY category")
+            cur.execute(f"SELECT category, COUNT(*) FROM diagnosis_records {time_filter} GROUP BY category")
             categories = {r[0] or "其他": r[1] for r in cur.fetchall()}
             
             # 3. 機率區間統計
-            cur.execute("""
+            cur.execute(f"""
                 SELECT 
                     CASE 
                         WHEN probability < 30 THEN '10%-30%'
@@ -374,6 +387,7 @@ def get_analytics_summary():
                     END as prob_range,
                     COUNT(*)
                 FROM diagnosis_records
+                {time_filter}
                 GROUP BY 
                     CASE 
                         WHEN probability < 30 THEN '10%-30%'
@@ -385,11 +399,21 @@ def get_analytics_summary():
             """)
             probabilities = {r[0]: r[1] for r in cur.fetchall()}
             
-            # 4. 每日趨勢 (近 30 天)
-            cur.execute("""
+            # 4. 每日趨勢
+            days_interval = "30 days"
+            if date_range == '7days':
+                days_interval = "7 days"
+            elif date_range == 'today':
+                days_interval = "1 day"
+            elif date_range == 'month':
+                days_interval = "31 days"
+            elif date_range == 'all':
+                days_interval = "90 days"
+                
+            cur.execute(f"""
                 SELECT TO_CHAR(created_at, 'YYYY-MM-DD') as date, COUNT(*)
                 FROM diagnosis_records
-                WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+                WHERE created_at >= CURRENT_DATE - INTERVAL '{days_interval}'
                 GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
                 ORDER BY date ASC
             """)
@@ -403,5 +427,51 @@ def get_analytics_summary():
                 "probabilities": probabilities,
                 "timeline": timeline
             }
+    finally:
+        conn.close()
+
+def get_recent_diagnoses(date_range='all', limit=50):
+    conn = get_connection()
+    if not conn: return []
+    
+    time_filter = ""
+    if date_range == 'today':
+        time_filter = "WHERE created_at >= CURRENT_DATE"
+    elif date_range == '7days':
+        time_filter = "WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'"
+    elif date_range == '30days':
+        time_filter = "WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'"
+    elif date_range == 'month':
+        time_filter = "WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)"
+        
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT id, user_id, display_name, category, title, probability, valuation_text, val_min, val_max, card_filename, TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS') as formatted_date
+                FROM diagnosis_records
+                {time_filter}
+                ORDER BY created_at DESC
+                LIMIT %s
+            """, (limit,))
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+def get_vip_leaderboard(limit=10):
+    conn = get_connection()
+    if not conn: return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT r.user_id, COALESCE(u.display_name, r.display_name, '隱藏藏家') as display_name, COALESCE(u.subscription_tier, 'FREE') as subscription_tier, COUNT(*) as count
+                FROM diagnosis_records r
+                LEFT JOIN users u ON r.user_id = u.user_id
+                GROUP BY r.user_id, u.display_name, r.display_name, u.subscription_tier
+                ORDER BY count DESC
+                LIMIT %s
+            """, (limit,))
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
     finally:
         conn.close()
