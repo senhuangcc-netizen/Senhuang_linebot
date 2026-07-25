@@ -178,9 +178,9 @@ def get_subscription_flex(host, user_id):
         )
 
     b1 = make_plan_bubble('#7f8c8d', '🪙 單筆儲值', '10 次，永久有效', '無實體送檢折抵', 'NT$ 100', '單次購買', 'point10')
-    b2 = make_plan_bubble('#27ae60', '🌱 小資玩家', '每月 8 件智能健檢', '實體折抵100元/件(限訂閱一方案)', 'NT$ 88', '月費，自動續訂', 'basic_single')
-    b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '每月 50 件智能健檢', '實體折抵300元/件(限訂閱一方案)', 'NT$ 399', '月費，自動續訂', 'advanced_single')
-    b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '每月 150 件智能健檢', '實體折抵500元/件(限訂閱一方案)', 'NT$ 860', '月費，自動續訂', 'business_single')
+    b2 = make_plan_bubble('#27ae60', '🌱 小資玩家', '每月 8 件智能健檢', '實體送檢折抵100元/件(注意方案不能重複訂閱)', 'NT$ 88', '月費，自動續訂', 'basic_single')
+    b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '每月 50 件智能健檢', '實體送檢折抵300元/件(注意方案不能重複訂閱)', 'NT$ 399', '月費，自動續訂', 'advanced_single')
+    b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '每月 150 件智能健檢', '實體送檢折抵500元/件(注意方案不能重複訂閱)', 'NT$ 860', '月費，自動續訂', 'business_single')
 
     return FlexSendMessage(
         alt_text="東方森煌館 付費與訂閱方案",
@@ -557,6 +557,54 @@ def buy(user_id, plan_id):
     if plan_id not in plans:
         return "Invalid Plan", 400
         
+    qty_str = request.args.get("qty")
+    if plan_id == "point10" and not qty_str and request.method == "GET":
+        return render_template_string("""
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>選擇儲值數量</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body { font-family: 'Helvetica Neue', Helvetica, Arial, '微軟正黑體', sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+                .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; max-width: 90%; width: 400px; box-sizing: border-box; }
+                h1 { color: #333; font-size: 24px; margin-bottom: 20px; }
+                .price-desc { color: #666; font-size: 16px; margin-bottom: 20px; }
+                .input-group { margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+                input[type=number] { width: 80px; padding: 10px; font-size: 18px; text-align: center; border: 1px solid #ccc; border-radius: 8px; }
+                .btn { display: inline-block; padding: 12px 24px; background-color: #00B900; color: white; text-decoration: none; border-radius: 30px; font-weight: bold; border: none; cursor: pointer; transition: background-color 0.3s; width: 100%; font-size: 18px; box-sizing: border-box; }
+                .btn:hover { background-color: #009900; }
+                .total { font-size: 20px; font-weight: bold; color: #e74c3c; margin-bottom: 20px; }
+            </style>
+            <script>
+                function updateTotal() {
+                    const qty = document.getElementById('qty').value;
+                    const amount = qty * 100;
+                    const quota = qty * 10;
+                    document.getElementById('total-amount').innerText = amount;
+                    document.getElementById('total-quota').innerText = quota;
+                }
+            </script>
+        </head>
+        <body>
+            <div class="card">
+                <h1>💰 購買單筆儲值點數</h1>
+                <div class="price-desc">每單位包含 10 次健檢額度，價格 100 元</div>
+                <form action="/buy/{{ user_id }}/{{ plan_id }}" method="GET">
+                    <div class="input-group">
+                        <label for="qty" style="font-size: 18px; font-weight: bold;">購買單位：</label>
+                        <input type="number" id="qty" name="qty" min="1" max="100" value="1" onchange="updateTotal()" onkeyup="updateTotal()">
+                    </div>
+                    <div class="total">
+                        總計獲得 <span id="total-quota">10</span> 次，共 <span id="total-amount">100</span> 元
+                    </div>
+                    <button type="submit" class="btn">確認付款</button>
+                </form>
+            </div>
+        </body>
+        </html>
+        """, user_id=user_id, plan_id=plan_id)
+        
     if plan_id != "point10":
         from datetime import datetime
         now = datetime.now()
@@ -591,6 +639,14 @@ def buy(user_id, plan_id):
             """, 400
             
     amount = plans[plan_id]["amount"]
+    
+    if plan_id == "point10":
+        try:
+            qty = int(qty_str) if qty_str else 1
+        except:
+            qty = 1
+        qty = max(1, min(100, qty))
+        amount = amount * qty
     
     # 產生唯一的訂單編號 (藍新 MerchantOrderNo 限 30 碼內)
     order_id = "A" + uuid.uuid4().hex[:20]
@@ -660,8 +716,11 @@ def newebpay_return():
         
         if user_id and plan_id:
             if plan_id == "point10":
-                database.add_purchased_quota(user_id, 10)
-                msg_text = "🎉 [藍新支付] 感謝購買！您的 10 次額度已入帳 (永久有效)。"
+                paid_amount = int(result.get("Amt", 100))
+                qty = paid_amount // 100
+                added_quota = qty * 10
+                database.add_purchased_quota(user_id, added_quota)
+                msg_text = f"🎉 [藍新支付] 感謝購買！您的 {added_quota} 次額度已入帳 (永久有效)。"
             elif plan_id == "basic_single":
                 database.update_subscription(user_id, "BASIC")
                 msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「小資玩家」年約定期定額方案，本月已開通 15 次智能健檢！"
@@ -805,6 +864,8 @@ def ecpay_return():
         return "0|CheckMacValue Error", 400
         
     rtn_code = request.form.get("RtnCode")
+    order_id = request.form.get("MerchantTradeNo")
+    
     if rtn_code == "1":
         # 交易成功
         custom_field = request.form.get("CustomField1", "")
@@ -813,8 +874,11 @@ def ecpay_return():
             user_id, plan_id = parts
             
             if plan_id == "point10":
-                database.add_purchased_quota(user_id, 10)
-                msg_text = "🎉 感謝購買！您的 10 次額度已入帳 (永久有效)。\n現在您可以繼續傳送照片進行智能文物健檢！"
+                trade_amt = int(request.form.get("TradeAmt", 100))
+                qty = trade_amt // 100
+                added_quota = qty * 10
+                database.add_purchased_quota(user_id, added_quota)
+                msg_text = f"🎉 感謝購買！您的 {added_quota} 次額度已入帳 (永久有效)。\n現在您可以繼續傳送照片進行智能文物健檢！"
             elif plan_id == "basic_single":
                 database.update_subscription(user_id, "BASIC")
                 msg_text = "🎉 感謝訂閱！升級為「小資玩家」，本月擁有 15 次智能健檢，且人工鑑定折抵 100 元！"
@@ -844,6 +908,24 @@ def ecpay_return():
                 line_bot_api.push_message(user_id, TextSendMessage(text=msg_text))
             except Exception as e:
                 app.logger.error(f"Push message failed: {e}")
+                
+        if order_id:
+            database.update_payment_order_status(
+                order_id, 
+                'SUCCESS', 
+                trade_no=request.form.get("TradeNo"), 
+                pay_time=request.form.get("PaymentDate"), 
+                amount=request.form.get("TradeAmt")
+            )
+    else:
+        if order_id:
+            database.update_payment_order_status(
+                order_id, 
+                'FAILED', 
+                trade_no=request.form.get("TradeNo"), 
+                pay_time=request.form.get("PaymentDate"), 
+                amount=request.form.get("TradeAmt")
+            )
                 
     return "1|OK"
 
