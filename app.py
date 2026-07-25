@@ -418,7 +418,7 @@ SYSTEM_PROMPT = """
 「⚠️ 警語：A.D.D. 乃基於 Gemini 全球資料庫以及市場實戰調校，然僅以照片判斷仍有一定誤差。雖優於個人 AI 客觀性，但尚不具備完整鑑定效益，僅供過濾及輔助使用。」
 
 請在回應的最後一行嚴格輸出以下 JSON 標籤供系統繪圖使用（不要加上 Markdown backticks 或其他文字）：
-###DATA:{"title": "青花龍紋花瓶", "prob": "85%", "valuation": "$ 7,000~15,000"}###
+###DATA:{"title": "青花龍紋花瓶", "prob": "85%", "valuation": "TWD 10萬~15萬"}###
 """
 
 gemini_model_name = "gemini-2.5-flash"
@@ -942,7 +942,7 @@ def handle_message(event):
                 resp_text = response.text
                 title = "古文物珍品"
                 prob = "75%"
-                valuation = "$ 10,000~30,000"
+                valuation = "TWD 10萬~15萬"
                 
                 # 嘗試找尋 ###DATA:{...}###
                 data_match = re.search(r"###DATA:(\{.*?\})###", resp_text)
@@ -952,18 +952,23 @@ def handle_message(event):
                         title = data_json.get("title", title)
                         prob = data_json.get("prob", prob)
                         valuation = data_json.get("valuation", valuation)
-                        # 將 DATA 標籤自給用戶顯示的文字中移除
-                        resp_text = resp_text.replace(data_match.group(0), "").strip()
                     except:
                         pass
-                else:
-                    # Fallback Regex 解析
-                    prob_m = re.search(r"真品機率評估為：.*?(\d+\s*%)", resp_text)
-                    if prob_m: prob = prob_m.group(1)
-                    title_m = re.search(r"分析為一件[「\[]*(.*?)[」\]]*其當前市場參考價值", resp_text)
-                    if title_m: title = title_m.group(1).strip()
-                    price_m = re.search(r"當前市場參考價值約落在[「\[]*(.*?)[」\]]*[。\n]", resp_text)
-                    if price_m: valuation = price_m.group(1).strip()
+                    # 將 DATA 標籤自給用戶顯示的文字中移除
+                    resp_text = resp_text.replace(data_match.group(0), "").strip()
+
+                # 使用正則從文字中提取以確保跟文字完全一致 (優先覆蓋)
+                prob_m = re.search(r"真品機率評估為：.*?(\d+\s*%)", resp_text)
+                if prob_m:
+                    prob = prob_m.group(1)
+                
+                title_m = re.search(r"分析為一件[「\[]*(.*?)[」\]]*其當前市場參考價值", resp_text)
+                if title_m:
+                    title = title_m.group(1).strip()
+                    
+                price_m = re.search(r"當前市場參考價值約落在[「\[]*(.*?)[」\]]*[。\n]", resp_text)
+                if price_m:
+                    valuation = price_m.group(1).strip()
 
                 # 獲取使用者 LINE 暱稱作為健檢操作者
                 display_name = "VIP 藏家"
