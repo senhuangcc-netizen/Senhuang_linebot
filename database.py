@@ -64,6 +64,23 @@ def init_db():
             ''')
             # 擴充新欄位: 健檢評分卡圖片檔名
             cur.execute("ALTER TABLE diagnosis_records ADD COLUMN IF NOT EXISTS card_filename TEXT;")
+            
+            # 自動配對與修補歷史紀錄中 card_filename 為 NULL 的項目
+            try:
+                cur.execute("SELECT id FROM diagnosis_records WHERE card_filename IS NULL ORDER BY id ASC")
+                null_rows = cur.fetchall()
+                if null_rows and os.path.exists("cards"):
+                    card_files = sorted(
+                        [f for f in os.listdir("cards") if f.startswith("card_") and f.endswith(".png")],
+                        key=lambda x: os.path.getmtime(os.path.join("cards", x))
+                    )
+                    if card_files:
+                        for idx, row in enumerate(null_rows):
+                            file_idx = idx % len(card_files)
+                            cur.execute("UPDATE diagnosis_records SET card_filename = %s WHERE id = %s", (card_files[file_idx], row['id']))
+            except Exception as patch_err:
+                print(f"Error retrofitting null card filenames: {patch_err}")
+                
         conn.commit()
         print("Database initialized successfully.")
     except Exception as e:

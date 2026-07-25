@@ -332,13 +332,13 @@
                         <table class="w-full text-left border-collapse" id="recentAppraisalsTable">
                             <thead>
                                 <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-xs font-semibold uppercase tracking-wider">
-                                    <th class="px-4 py-3">時間</th>
-                                    <th class="px-4 py-3">藏家暱稱</th>
-                                    <th class="px-4 py-3">分類</th>
-                                    <th class="px-4 py-3">文物名稱</th>
-                                    <th class="px-4 py-3">真品率</th>
-                                    <th class="px-4 py-3">估值區間</th>
-                                    <th class="px-4 py-3 text-center">評分卡</th>
+                                    <th class="px-4 py-3 whitespace-nowrap">時間</th>
+                                    <th class="px-4 py-3 whitespace-nowrap">藏家暱稱</th>
+                                    <th class="px-4 py-3 whitespace-nowrap">分類</th>
+                                    <th class="px-4 py-3 whitespace-nowrap">文物名稱</th>
+                                    <th class="px-4 py-3 whitespace-nowrap">真品率</th>
+                                    <th class="px-4 py-3 whitespace-nowrap">估值區間</th>
+                                    <th class="px-4 py-3 text-center whitespace-nowrap">評分卡</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-800/40 text-xs text-slate-300" id="recent-records-tbody">
@@ -805,15 +805,15 @@
                         }
 
                         tr.innerHTML = `
-                            <td class="px-4 py-3 text-slate-500 font-mono">${r.formatted_date}</td>
-                            <td class="px-4 py-3 font-semibold text-slate-200">${r.display_name || '隱藏藏家'}</td>
-                            <td class="px-4 py-3">
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${catBg}">${r.category || '其他'}</span>
+                            <td class="px-4 py-3 text-slate-500 font-mono whitespace-nowrap">${r.formatted_date}</td>
+                            <td class="px-4 py-3 font-semibold text-slate-200 whitespace-nowrap">${r.display_name || '隱藏藏家'}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <span class="whitespace-nowrap px-2 py-0.5 rounded text-[10px] font-bold border ${catBg}">${r.category || '其他'}</span>
                             </td>
-                            <td class="px-4 py-3 text-slate-100 max-w-[120px] truncate">${r.title || '古文物'}</td>
-                            <td class="px-4 py-3 font-bold text-amber-500">${r.probability}%</td>
-                            <td class="px-4 py-3 font-mono text-emerald-450">${r.valuation_text || '無'}</td>
-                            <td class="px-4 py-3 text-center">${cardButton}</td>
+                            <td class="px-4 py-3 text-slate-100 max-w-[120px] truncate whitespace-nowrap">${r.title || '古文物'}</td>
+                            <td class="px-4 py-3 font-bold text-amber-500 whitespace-nowrap">${r.probability}%</td>
+                            <td class="px-4 py-3 font-mono text-emerald-450 whitespace-nowrap">${r.valuation_text || '無'}</td>
+                            <td class="px-4 py-3 text-center whitespace-nowrap">${cardButton}</td>
                         `;
                         recordsTbody.appendChild(tr);
                     });
