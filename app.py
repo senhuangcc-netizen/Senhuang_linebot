@@ -519,7 +519,8 @@ def payment_success():
 
 @app.route("/cards/<filename>")
 def serve_card(filename):
-    return send_from_directory("cards", filename)
+    cards_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
+    return send_from_directory(cards_dir, filename)
 
 @app.route("/static/<filename>")
 def serve_static(filename):
@@ -805,14 +806,21 @@ def newebpay_period_return():
             plan_id = order_info['plan_id']
             
         if user_id and plan_id:
+            period_times = result.get("PeriodTimes") or data.get("PeriodTimes")
+            ext_day = result.get("Extday") or data.get("Extday")
+            
+            expiry_str = "自動續訂中"
+            if ext_day:
+                expiry_str = f"自動續訂中 (本卡授權至: {ext_day})"
+            
             if plan_id == "basic_single":
-                database.update_subscription(user_id, "BASIC")
+                database.update_subscription(user_id, "BASIC", expiry_str)
                 msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「小資玩家」定期定額方案，每月固定扣款，本月已開通 8 次智能健檢！"
             elif plan_id == "advanced_single":
-                database.update_subscription(user_id, "ADVANCED")
+                database.update_subscription(user_id, "ADVANCED", expiry_str)
                 msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「進階藏家」定期定額方案，每月固定扣款，本月已開通 50 次智能健檢！"
             elif plan_id == "business_single":
-                database.update_subscription(user_id, "BUSINESS")
+                database.update_subscription(user_id, "BUSINESS", expiry_str)
                 msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「商務旗艦」定期定額方案，每月固定扣款，本月已開通 150 次智能健檢！"
             else:
                 msg_text = "🎉 [藍新訂閱] 您的定期定額委託已成功建立並完成首期扣款！"

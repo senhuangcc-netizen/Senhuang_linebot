@@ -238,8 +238,12 @@ def update_subscription(user_id, tier, expiry_str_or_add_months=1):
     try:
         with conn.cursor() as cur:
             now = datetime.datetime.now()
-            next_month = now + datetime.timedelta(days=30)
-            expiry_str = next_month.strftime('%Y-%m-%d %H:%M:%S')
+            
+            if isinstance(expiry_str_or_add_months, str):
+                expiry_str = expiry_str_or_add_months
+            else:
+                expiry_str = "總授權 99 期"
+                
             month_str = f"{now.year}-{now.month:02d}"
 
             cur.execute("""
