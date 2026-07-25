@@ -16,12 +16,220 @@
             border-bottom-color: #d97706;
             color: #f59e0b;
         }
+
+        /* ===== Fullscreen Loader ===== */
+        #fullscreenLoader {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #020617;
+            transition: opacity 0.6s ease, visibility 0.6s ease;
+        }
+        #fullscreenLoader.fade-out {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .loader-gem {
+            width: 56px;
+            height: 56px;
+            position: relative;
+            margin-bottom: 28px;
+        }
+        .loader-gem i {
+            font-size: 48px;
+            background: linear-gradient(135deg, #f59e0b, #d97706, #b45309);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gemPulse 1.6s ease-in-out infinite;
+        }
+        @keyframes gemPulse {
+            0%, 100% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+            25%      { transform: scale(1.12) rotate(6deg); filter: brightness(1.3); }
+            50%      { transform: scale(1) rotate(0deg); filter: brightness(1); }
+            75%      { transform: scale(1.08) rotate(-4deg); filter: brightness(1.2); }
+        }
+        .loader-brand {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 6px;
+            color: #94a3b8;
+            margin-bottom: 32px;
+            background: linear-gradient(90deg, #64748b 0%, #e2e8f0 50%, #64748b 100%);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shimmerText 2s ease-in-out infinite;
+        }
+        @keyframes shimmerText {
+            0%   { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+        .loader-bar-track {
+            width: 200px;
+            height: 3px;
+            background: #1e293b;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .loader-bar-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 4px;
+            background: linear-gradient(90deg, #d97706, #f59e0b);
+            animation: barFill 1.8s ease-in-out forwards;
+        }
+        @keyframes barFill {
+            0%   { width: 0%; }
+            40%  { width: 55%; }
+            80%  { width: 85%; }
+            100% { width: 100%; }
+        }
+        .loader-dots {
+            margin-top: 18px;
+            display: flex;
+            gap: 6px;
+        }
+        .loader-dots span {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #475569;
+            animation: dotBounce 1.2s ease-in-out infinite;
+        }
+        .loader-dots span:nth-child(2) { animation-delay: 0.15s; }
+        .loader-dots span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes dotBounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40%           { transform: scale(1.2); opacity: 1; background: #f59e0b; }
+        }
+
+        /* ===== Entrance Animations ===== */
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .animate-entrance {
+            opacity: 0;
+            animation: fadeSlideUp 0.5s ease-out forwards;
+        }
+        .animate-delay-1 { animation-delay: 0.08s; }
+        .animate-delay-2 { animation-delay: 0.16s; }
+        .animate-delay-3 { animation-delay: 0.24s; }
+        .animate-delay-4 { animation-delay: 0.32s; }
+
+        /* ===== Tab Pane Transition ===== */
+        .tab-pane {
+            animation: fadeSlideUp 0.35s ease-out;
+        }
+        .tab-pane.hidden {
+            animation: none;
+        }
+
+        /* ===== Table Row Hover Glow ===== */
+        #usersTable tbody tr,
+        #ordersTable tbody tr {
+            transition: background 0.25s ease, box-shadow 0.25s ease;
+        }
+        #usersTable tbody tr:hover,
+        #ordersTable tbody tr:hover {
+            background: rgba(30, 41, 59, 0.6) !important;
+            box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.08);
+        }
+
+        /* ===== Button Ripple Effect ===== */
+        .btn-ripple {
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-ripple::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 10%, transparent 10.01%);
+            transform: scale(10);
+            opacity: 0;
+            transition: transform 0.4s ease, opacity 0.8s ease;
+        }
+        .btn-ripple:active::after {
+            transform: scale(0);
+            opacity: 1;
+            transition: 0s;
+        }
+
+        /* ===== Card / Section Hover Lift ===== */
+        .hover-lift {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .hover-lift:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        }
+
+        /* ===== Nav subtle glow ===== */
+        nav {
+            transition: box-shadow 0.3s ease;
+        }
+        nav:hover {
+            box-shadow: 0 2px 20px rgba(217, 119, 6, 0.06);
+        }
+
+        /* ===== Tab button hover ===== */
+        .tab-btn {
+            transition: color 0.2s ease, border-bottom-color 0.2s ease, transform 0.15s ease;
+        }
+        .tab-btn:hover:not(.active) {
+            color: #cbd5e1;
+            transform: translateY(-1px);
+        }
+        .tab-btn:active {
+            transform: translateY(0px);
+        }
+
+        /* ===== Scroll to top fab (optional) ===== */
+        #scrollTopBtn {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            z-index: 40;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(217, 119, 6, 0.85);
+            color: #0f172a;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25);
+            transition: transform 0.25s ease, opacity 0.3s ease;
+            border: none;
+        }
+        #scrollTopBtn:hover {
+            transform: scale(1.12);
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
+    <!-- Fullscreen Loading Overlay -->
+    <div id="fullscreenLoader">
+        <div class="loader-gem"><i class="fa-solid fa-gem"></i></div>
+        <div class="loader-brand">東方森煌</div>
+        <div class="loader-bar-track"><div class="loader-bar-fill"></div></div>
+        <div class="loader-dots"><span></span><span></span><span></span></div>
+    </div>
+
+    <!-- Scroll to Top FAB -->
+    <button id="scrollTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+        <i class="fa-solid fa-chevron-up"></i>
+    </button>
+
     <!-- Header / Nav -->
-    <nav class="bg-slate-900 border-b border-slate-800 py-4 px-6 sticky top-0 z-30">
+    <nav class="bg-slate-900 border-b border-slate-800 py-4 px-6 sticky top-0 z-30 animate-entrance">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
             <div class="flex items-center space-x-3">
                 <span class="text-amber-500 font-bold text-xl tracking-wider"><i class="fa-solid fa-gem mr-2"></i>東方森煌</span>
@@ -43,7 +251,7 @@
     </nav>
 
     <!-- Main Content -->
-    <main class="flex-grow max-w-7xl w-full mx-auto p-4 md:p-8">
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 md:p-8 animate-entrance animate-delay-1">
         {% if not logged_in %}
         <!-- Login Form -->
         <div class="max-w-md mx-auto my-12 bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl shadow-slate-950/50">
@@ -62,7 +270,7 @@
                     <label class="block text-slate-400 text-sm font-semibold mb-2">管理密碼 (Password)</label>
                     <input type="password" name="password" required class="w-full bg-slate-950 border border-slate-850 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-lg px-4 py-3 text-slate-100 placeholder-slate-600 outline-none transition" placeholder="••••••••">
                 </div>
-                <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-3 rounded-lg shadow-lg hover:shadow-amber-500/10 transition duration-300">
+                <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-3 rounded-lg shadow-lg hover:shadow-amber-500/10 transition duration-300 btn-ripple">
                     安全登入 <i class="fa-solid fa-right-to-bracket ml-1"></i>
                 </button>
             </form>
@@ -100,7 +308,7 @@
             </div>
 
             <!-- Orders Table -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl hover-lift">
                 <table class="w-full text-left border-collapse" id="ordersTable">
                     <thead>
                         <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-xs font-semibold uppercase tracking-wider">
@@ -189,7 +397,7 @@
             </div>
 
             <!-- Users Table -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl hover-lift">
                 <table class="w-full text-left border-collapse" id="usersTable">
                     <thead>
                         <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-xs font-semibold uppercase tracking-wider">
@@ -414,7 +622,7 @@
             </div>
 
             <!-- Message Form -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-6 hover-lift">
                 <div>
                     <label class="block text-slate-350 text-sm font-semibold mb-2">廣播內容 (Message Text)</label>
                     <textarea id="broadcastContent" rows="8" oninput="updateCharCount()" class="w-full bg-slate-950 border border-slate-850 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-lg px-4 py-3 text-slate-100 outline-none transition placeholder-slate-600 text-sm leading-relaxed" placeholder="請輸入欲群發的公告或推廣內容..."></textarea>
@@ -435,7 +643,7 @@
                 </div>
 
                 <div class="flex space-x-4">
-                    <button type="button" onclick="triggerBroadcast()" class="flex-grow bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-3 px-6 rounded-lg shadow-lg hover:shadow-amber-500/10 transition duration-300 flex items-center justify-center">
+                    <button type="button" onclick="triggerBroadcast()" class="flex-grow bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-3 px-6 rounded-lg shadow-lg hover:shadow-amber-500/10 transition duration-300 flex items-center justify-center btn-ripple">
                         <i class="fa-solid fa-paper-plane mr-2"></i> 立即群發廣播
                     </button>
                 </div>
@@ -493,7 +701,7 @@
                 <button onclick="closeEditModal()" class="w-1/3 bg-slate-800 hover:bg-slate-750 text-slate-300 font-semibold py-2 rounded-lg transition text-sm">
                     取消
                 </button>
-                <button onclick="saveUserChanges()" class="w-2/3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-2 rounded-lg shadow transition text-sm">
+                <button onclick="saveUserChanges()" class="w-2/3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-2 rounded-lg shadow transition text-sm btn-ripple">
                     確認保存變更
                 </button>
             </div>
@@ -929,6 +1137,50 @@
             }
         });
         {% endif %}
+
+        // ===== Fullscreen Loader Lifecycle =====
+        (function() {
+            const loader = document.getElementById('fullscreenLoader');
+            if (!loader) return;
+            
+            let contentReady = false;
+            let minTimeElapsed = false;
+
+            function dismiss() {
+                if (contentReady && minTimeElapsed) {
+                    loader.classList.add('fade-out');
+                    setTimeout(() => { loader.remove(); }, 700);
+                }
+            }
+
+            // Min display time for visual polish (1.8s matches progress bar)
+            setTimeout(() => { minTimeElapsed = true; dismiss(); }, 1800);
+
+            // Content ready
+            window.addEventListener('load', () => { contentReady = true; dismiss(); });
+
+            // Safety fallback: dismiss after 4s no matter what
+            setTimeout(() => {
+                if (loader.parentNode) {
+                    loader.classList.add('fade-out');
+                    setTimeout(() => { if (loader.parentNode) loader.remove(); }, 700);
+                }
+            }, 4000);
+        })();
+
+        // ===== Scroll to Top Button =====
+        (function() {
+            const btn = document.getElementById('scrollTopBtn');
+            if (!btn) return;
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 400) {
+                    btn.style.display = 'flex';
+                } else {
+                    btn.style.display = 'none';
+                }
+            });
+        })();
     </script>
 </body>
 </html>
+
