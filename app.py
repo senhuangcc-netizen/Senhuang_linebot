@@ -1344,7 +1344,7 @@ def admin_page():
 @app.route("/admin/login", methods=["POST"])
 def admin_login():
     password = request.form.get("password")
-    admin_password = os.getenv("ADMIN_PASSWORD", "senhuangadmin123")
+    admin_password = os.getenv("ADMIN_PASSWORD", "1931sf1164")
     if password == admin_password:
         session["admin_logged_in"] = True
         return redirect("/admin")
