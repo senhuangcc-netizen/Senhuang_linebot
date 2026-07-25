@@ -211,7 +211,11 @@
                             </td>
                             <td class="px-6 py-4 font-mono text-xs text-slate-400">{{ user.user_id }}</td>
                             <td class="px-6 py-4">
-                                {% if user.subscription_tier == 'ADVANCED' %}
+                                {% if user.subscription_tier == 'ADMIN' %}
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-950 text-rose-300 border border-rose-900">
+                                    ADMIN
+                                </span>
+                                {% elif user.subscription_tier == 'ADVANCED' %}
                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-900">
                                     ADVANCED
                                 </span>
@@ -233,7 +237,7 @@
                                 <span class="font-semibold text-slate-300">{{ user.usage_count }}</span>
                                 <span class="text-slate-600">/</span>
                                 <span class="text-slate-500">
-                                    {% if user.subscription_tier == 'ADVANCED' %}50{% elif user.subscription_tier == 'BUSINESS' %}150{% elif user.subscription_tier == 'BASIC' %}8{% else %}3{% endif %}
+                                    {% if user.subscription_tier == 'ADMIN' %}無限制{% elif user.subscription_tier == 'ADVANCED' %}50{% elif user.subscription_tier == 'BUSINESS' %}150{% elif user.subscription_tier == 'BASIC' %}8{% else %}3{% endif %}
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-emerald-400 font-semibold">{{ user.purchased_quota }} 點</td>
@@ -472,6 +476,7 @@
                             <option value="BASIC">BASIC (小資)</option>
                             <option value="ADVANCED">ADVANCED (進階)</option>
                             <option value="BUSINESS">BUSINESS (商務)</option>
+                            <option value="ADMIN">ADMIN (管理員)</option>
                         </select>
                     </div>
                     <div>
