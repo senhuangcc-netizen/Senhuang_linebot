@@ -177,8 +177,13 @@ def decrypt_newebpay_period_response(period_hex, hash_key, hash_iv):
         decrypted_padded = cipher.decrypt(encrypted_bytes)
         
         # 3. PKCS7 Unpadding
-        decrypted_bytes = unpad(decrypted_padded, 16)
-        
+        try:
+            decrypted_bytes = unpad(decrypted_padded, 16)
+        except Exception as pad_err:
+            print(f"[NewebPay Period Decrypt Debug] Unpad failed. Raw decrypted (first 100 bytes): {decrypted_padded[:100]!r}")
+            print(f"[NewebPay Period Decrypt Debug] Raw decrypted (utf-8 attempt): {decrypted_padded[:100].decode('utf-8', errors='ignore')!r}")
+            raise pad_err
+            
         # 4. 解碼為字串 (安全防錯)
         try:
             decrypted_str = decrypted_bytes.decode('utf-8')
@@ -212,8 +217,13 @@ def decrypt_newebpay_response(trade_info_hex, hash_key, hash_iv):
         decrypted_padded = cipher.decrypt(encrypted_bytes)
         
         # 3. PKCS7 Unpadding
-        decrypted_bytes = unpad(decrypted_padded, 16)
-        
+        try:
+            decrypted_bytes = unpad(decrypted_padded, 16)
+        except Exception as pad_err:
+            print(f"[NewebPay Decrypt Debug] Unpad failed. Raw decrypted (first 100 bytes): {decrypted_padded[:100]!r}")
+            print(f"[NewebPay Decrypt Debug] Raw decrypted (utf-8 attempt): {decrypted_padded[:100].decode('utf-8', errors='ignore')!r}")
+            raise pad_err
+            
         # 4. 解碼為字串 (安全防錯)
         try:
             decrypted_str = decrypted_bytes.decode('utf-8')

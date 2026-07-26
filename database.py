@@ -351,7 +351,15 @@ def get_all_users():
             cur.execute("""
                 SELECT user_id, display_name, current_mode, usage_month, usage_count, purchased_quota, subscription_tier, subscription_expiry 
                 FROM users 
-                ORDER BY subscription_tier DESC, user_id
+                ORDER BY 
+                    CASE subscription_tier
+                        WHEN 'ADMIN' THEN 1
+                        WHEN 'BUSINESS' THEN 2
+                        WHEN 'ADVANCED' THEN 3
+                        WHEN 'BASIC' THEN 4
+                        ELSE 5
+                    END ASC, 
+                    user_id
             """)
             rows = cur.fetchall()
             return [dict(row) for row in rows]
@@ -364,8 +372,8 @@ def get_user_diagnoses(user_id):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, category, title, probability, valuation_text, val_min, val_max, card_url, TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI:SS') as formatted_date
-                FROM diagnoses
+                SELECT id, category, title, probability, valuation_text, val_min, val_max, card_filename, TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI:SS') as formatted_date
+                FROM diagnosis_records
                 WHERE user_id = %s
                 ORDER BY created_at DESC
             """, (user_id,))

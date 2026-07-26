@@ -971,9 +971,13 @@
                     } else {
                         diagBody.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-slate-600 text-xs">無健檢歷史</td></tr>';
                     }
+                } else {
+                    document.getElementById('profile-orders-tbody').innerHTML = `<tr><td colspan="4" class="px-3 py-4 text-center text-rose-500">載入失敗: ${data.message || '未知錯誤'}</td></tr>`;
+                    document.getElementById('profile-diagnoses-tbody').innerHTML = `<tr><td colspan="5" class="px-3 py-4 text-center text-rose-500">載入失敗: ${data.message || '未知錯誤'}</td></tr>`;
                 }
             } catch (err) {
                 document.getElementById('profile-orders-tbody').innerHTML = `<tr><td colspan="4" class="px-3 py-4 text-center text-rose-500">載入失敗</td></tr>`;
+                document.getElementById('profile-diagnoses-tbody').innerHTML = `<tr><td colspan="5" class="px-3 py-4 text-center text-rose-500">載入失敗</td></tr>`;
             }
         }
 
