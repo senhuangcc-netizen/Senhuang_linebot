@@ -80,14 +80,11 @@ def draw_sci_fi_panel(draw, width, height, fill_color, border_color, outer_width
     draw.line([(0, mid_y), (lx, mid_y)], fill=(0, 200, 255, 60), width=2)
     draw.line([(rx, mid_y), (width, mid_y)], fill=(0, 200, 255, 60), width=2)
 
-def generate_ig_card(user_id, title, prob, valuation, image_bytes, output_dir=None, user_name="VIP 藏家"):
+def generate_ig_card(user_id, title, prob, valuation, image_bytes, output_dir="cards", user_name="VIP 藏家"):
     """
     依據用戶設計圖樣板，動態生成極具未來科技感的 A.A.D 文物健檢圖卡
     全新版：照片置中於上方，所有文字資訊清楚排列於下方，確保無重疊
     """
-    if output_dir is None:
-        output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
-        
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 

@@ -182,9 +182,21 @@ def get_subscription_flex(host, user_id):
     b3 = make_plan_bubble('#2980b9', '👑 進階藏家', '每月 50 件智能健檢', '實體送檢折抵300元/件(注意方案不能重複訂閱)', 'NT$ 399', '月費，自動續訂', 'advanced_single')
     b4 = make_plan_bubble('#8e44ad', '💎 商務旗艦', '每月 150 件智能健檢', '實體送檢折抵500元/件(注意方案不能重複訂閱)', 'NT$ 860', '月費，自動續訂', 'business_single')
 
+    b_notice = BubbleContainer(
+        body=BoxComponent(
+            layout='vertical',
+            contents=[
+                TextComponent(text='⚠️ 訂閱與儲值須知', weight='bold', size='lg', color='#e74c3c'),
+                SeparatorComponent(margin='md'),
+                TextComponent(text='系統限制每位用戶只能訂閱「一個」包月方案。', size='sm', color='#2c3e50', weight='bold', wrap=True),
+                TextComponent(text='若已訂閱方案而額度不足，請選購【單筆儲值】點數，或聯絡客服進行方案升級，請勿重複訂閱多個方案以免被重複扣款！', size='xs', color='#7f8c8d', margin='md', wrap=True),
+            ]
+        )
+    )
+
     return FlexSendMessage(
         alt_text="東方森煌館 付費與訂閱方案",
-        contents=CarouselContainer(contents=[b2, b3, b4, b1])
+        contents=CarouselContainer(contents=[b_notice, b2, b3, b4, b1])
     )
 def get_booking_guide_flex():
     """產生引導至官方 LINE 的精美 Flex Message"""
@@ -519,8 +531,7 @@ def payment_success():
 
 @app.route("/cards/<filename>")
 def serve_card(filename):
-    cards_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
-    return send_from_directory(cards_dir, filename)
+    return send_from_directory("cards", filename)
 
 @app.route("/static/<filename>")
 def serve_static(filename):
@@ -613,31 +624,134 @@ def buy(user_id, plan_id):
         user_state = database.get_user_status_data(user_id, month_str)
         tier = user_state.get('tier', 'FREE')
         if tier not in ["FREE", "ADMIN"]:
-            return """
+            return render_template_string("""
             <html>
             <head>
                 <meta charset="utf-8">
-                <title>無法重複訂閱</title>
+                <title>無法重複訂閱 - 東方森煌</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1">
+                <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
                 <style>
-                    body { font-family: 'Helvetica Neue', Helvetica, Arial, '微軟正黑體', sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-                    .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; max-width: 90%; width: 400px; }
-                    .icon { font-size: 50px; margin-bottom: 20px; }
-                    h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
-                    p { color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px; }
-                    .btn { display: inline-block; padding: 12px 24px; background-color: #00B900; color: white; text-decoration: none; border-radius: 30px; font-weight: bold; transition: background-color 0.3s; margin-top: 10px; }
-                    .btn:hover { background-color: #009900; }
+                    body {
+                        font-family: 'Outfit', 'Noto Sans TC', sans-serif;
+                        background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+                        color: #f1f5f9;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        height: 100vh;
+                        margin: 0;
+                        overflow: hidden;
+                    }
+                    .card {
+                        background: rgba(30, 41, 59, 0.7);
+                        backdrop-filter: blur(16px);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                        padding: 40px 30px;
+                        border-radius: 24px;
+                        box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+                        text-align: center;
+                        max-width: 90%;
+                        width: 420px;
+                        box-sizing: border-box;
+                        animation: fadeInUp 0.6s ease-out;
+                    }
+                    @keyframes fadeInUp {
+                        from { opacity: 0; transform: translateY(20px); }
+                        to { opacity: 1; transform: translateY(0); }
+                    }
+                    .icon-container {
+                        width: 80px;
+                        height: 80px;
+                        background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin: 0 auto 24px;
+                        box-shadow: 0 8px 24px rgba(225, 29, 72, 0.4);
+                    }
+                    .icon {
+                        font-size: 40px;
+                        animation: pulse 2s infinite;
+                    }
+                    @keyframes pulse {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.1); }
+                        100% { transform: scale(1); }
+                    }
+                    h1 {
+                        font-size: 24px;
+                        font-weight: 800;
+                        margin-bottom: 12px;
+                        background: linear-gradient(to right, #ffedd5, #fde047);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                    }
+                    p {
+                        color: #94a3b8;
+                        font-size: 15px;
+                        line-height: 1.6;
+                        margin-bottom: 30px;
+                    }
+                    p strong {
+                        color: #fde047;
+                    }
+                    .btn-group {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .btn {
+                        display: block;
+                        padding: 14px;
+                        border-radius: 12px;
+                        font-weight: 600;
+                        text-decoration: none;
+                        font-size: 16px;
+                        cursor: pointer;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                        box-sizing: border-box;
+                    }
+                    .btn-primary {
+                        background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%);
+                        color: #0f172a;
+                        box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3);
+                        border: none;
+                    }
+                    .btn-primary:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 20px rgba(234, 179, 8, 0.5);
+                    }
+                    .btn-secondary {
+                        background: transparent;
+                        border: 1px solid rgba(255, 255, 255, 0.2);
+                        color: #cbd5e1;
+                    }
+                    .btn-secondary:hover {
+                        background: rgba(255, 255, 255, 0.05);
+                        border-color: rgba(255, 255, 255, 0.4);
+                    }
                 </style>
             </head>
             <body>
                 <div class="card">
-                    <div class="icon">⚠️</div>
-                    <h1>您已是訂閱會員</h1>
-                    <p>每個帳號僅能訂閱一個方案。<br><br>若需更多額度，請在選單購買「<b>單筆儲值</b>」。<br>若需升級方案，請聯絡官方客服。</p>
+                    <div class="icon-container">
+                        <div class="icon">⚠️</div>
+                    </div>
+                    <h1>您已有使用中的會員方案</h1>
+                    <p>
+                        為維護金流安全，系統限制每個帳號<strong>僅能訂閱一個</strong>包月方案。<br><br>
+                        若您目前額度不足，建議加購<strong>「單筆儲值」點數</strong>，或聯絡客服為您手動升級方案，請勿重複付款訂閱。
+                    </p>
+                    <div class="btn-group">
+                        <a href="/buy/{{ user_id }}/point10" class="btn btn-primary">🪙 前往購買單筆儲值點數</a>
+                        <button onclick="window.close();" class="btn btn-secondary">❌ 關閉此視窗</button>
+                    </div>
                 </div>
             </body>
             </html>
-            """, 400
+            """, user_id=user_id), 400
             
     amount = plans[plan_id]["amount"]
     
@@ -682,8 +796,9 @@ def buy(user_id, plan_id):
 
 @app.route("/newebpay/return", methods=["POST"])
 def newebpay_return():
-    trade_info_hex = request.form.get("TradeInfo")
+    trade_info_hex = request.form.get("TradeInfo") or request.args.get("TradeInfo") or request.values.get("TradeInfo")
     if not trade_info_hex:
+        app.logger.error("[NewebPay Return] No TradeInfo found in form, args, or values")
         return "No TradeInfo", 400
         
     data = newebpay_integration.decrypt_newebpay_response(
@@ -693,6 +808,7 @@ def newebpay_return():
     )
     
     if not data:
+        app.logger.error(f"[NewebPay Return] Decryption failed for TradeInfo: {trade_info_hex[:50] if trade_info_hex else 'None'}...")
         return "Decrypt Error", 400
         
     # 加入日誌以利除錯
@@ -772,8 +888,9 @@ def newebpay_return():
 
 @app.route("/newebpay/period_return", methods=["POST"])
 def newebpay_period_return():
-    period_hex = request.form.get("Period")
+    period_hex = request.form.get("Period") or request.args.get("Period") or request.values.get("Period")
     if not period_hex:
+        app.logger.error("[NewebPay Period Return] No Period data found in form, args, or values")
         return "No PeriodData", 400
         
     data = newebpay_integration.decrypt_newebpay_period_response(
@@ -783,6 +900,7 @@ def newebpay_period_return():
     )
     
     if not data:
+        app.logger.error(f"[NewebPay Period Return] Decryption failed for Period: {period_hex[:50] if period_hex else 'None'}...")
         return "Decrypt Error", 400
         
     # 加入日誌以利除錯
@@ -806,24 +924,27 @@ def newebpay_period_return():
             plan_id = order_info['plan_id']
             
         if user_id and plan_id:
-            period_times = result.get("PeriodTimes") or data.get("PeriodTimes")
             ext_day = result.get("Extday") or data.get("Extday")
             
-            expiry_str = "自動續訂中"
             if ext_day:
-                expiry_str = f"自動續訂中 (本卡授權至: {ext_day})"
+                expiry_str = f"{ext_day} 23:59:59"
+            else:
+                from datetime import datetime, timedelta
+                expiry_str = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
+            
+            warning_note = "\n⚠️【重要提醒】系統限制每位用戶只能訂閱「一個」包月方案。如需更多額度，請於聊天室輸入「購買」並加購「單筆儲值」點數，請勿重複訂閱多個方案，以防被重複扣款。"
             
             if plan_id == "basic_single":
                 database.update_subscription(user_id, "BASIC", expiry_str)
-                msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「小資玩家」定期定額方案，每月固定扣款，本月已開通 8 次智能健檢！"
+                msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「小資玩家」定期定額方案，每月固定扣款，本月已開通 8 次智能健檢！" + warning_note
             elif plan_id == "advanced_single":
                 database.update_subscription(user_id, "ADVANCED", expiry_str)
-                msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「進階藏家」定期定額方案，每月固定扣款，本月已開通 50 次智能健檢！"
+                msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「進階藏家」定期定額方案，每月固定扣款，本月已開通 50 次智能健檢！" + warning_note
             elif plan_id == "business_single":
                 database.update_subscription(user_id, "BUSINESS", expiry_str)
-                msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「商務旗艦」定期定額方案，每月固定扣款，本月已開通 150 次智能健檢！"
+                msg_text = "🎉 [藍新訂閱] 感謝訂閱！升級為「商務旗艦」定期定額方案，每月固定扣款，本月已開通 150 次智能健檢！" + warning_note
             else:
-                msg_text = "🎉 [藍新訂閱] 您的定期定額委託已成功建立並完成首期扣款！"
+                msg_text = "🎉 [藍新訂閱] 您的定期定額委託已成功建立並完成首期扣款！" + warning_note
                 
             # 取得最新額度資訊
             from datetime import datetime
