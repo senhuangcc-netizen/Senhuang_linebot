@@ -1396,7 +1396,7 @@ def handle_message(event):
         img_count = sum(1 for item in user_images[user_id] if isinstance(item, dict))
         text_count = sum(1 for item in user_images[user_id] if isinstance(item, str))
         
-        msg = f"📝 已收到您的文字說明 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他要補充的照片或描述嗎？\n若已傳送完畢，請輸入『開始健檢』。"
+        msg = f"📝 已收到您的文字說明 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他要補充的照片或描述嗎？\n若已傳送完畢，請再點擊『開始健檢』以取得分析結果。"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
 @handler.add(MessageEvent, message=ImageMessage)
