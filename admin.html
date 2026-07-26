@@ -728,14 +728,14 @@
 
     {% if logged_in %}
     <!-- Edit User Modal (360 View) -->
-    <div id="editModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm hidden overflow-y-auto pt-10 pb-10">
-        <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl mx-4 rounded-2xl shadow-2xl relative overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+    <div id="editModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl mx-4 rounded-2xl shadow-2xl relative overflow-hidden flex flex-col md:flex-row h-[85vh] max-h-[680px]">
             <button onclick="closeEditModal()" class="absolute top-4 right-4 text-slate-500 hover:text-white transition z-10">
                 <i class="fa-solid fa-times text-xl"></i>
             </button>
             
             <!-- Left Panel: Edit Form -->
-            <div class="w-full md:w-1/3 p-6 bg-slate-900 border-r border-slate-800 flex flex-col">
+            <div class="w-full md:w-1/3 p-6 bg-slate-900 border-r border-slate-800 flex flex-col h-full overflow-y-auto scrollbar-thin">
                 <h4 class="text-lg font-bold mb-4 text-amber-500 flex items-center">
                     <i class="fa-solid fa-user-gear mr-2"></i>調整用戶狀態
                 </h4>
@@ -774,7 +774,7 @@
             </div>
             
             <!-- Right Panel: History (360 View) -->
-            <div class="w-full md:w-2/3 p-6 bg-slate-950 flex flex-col space-y-6 overflow-y-auto max-h-[70vh] md:max-h-full">
+            <div class="w-full md:w-2/3 p-6 bg-slate-950 flex flex-col space-y-6 overflow-y-auto h-full scrollbar-thin">
                 <h4 class="text-lg font-bold text-slate-200 flex items-center border-b border-slate-800 pb-2">
                     <i class="fa-solid fa-clock-rotate-left mr-2 text-emerald-500"></i>用戶歷程 360°
                 </h4>
