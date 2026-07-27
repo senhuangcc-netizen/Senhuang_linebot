@@ -178,7 +178,7 @@ def consume_quota(user_id, month_str):
     """
     conn = get_connection()
     if not conn:
-        return (False, 0, 0)
+        return (False, 0, 0, False)
     try:
         # 先取得狀態
         data = get_user_status_data(user_id, month_str)
@@ -190,13 +190,15 @@ def consume_quota(user_id, month_str):
         if usage < free_limit:
             new_usage = usage + 1
             new_purchased = purchased
+            was_purchased = False
         # 2. 無料可扣，判斷是否有付費額度可扣
         elif purchased > 0:
             new_usage = usage
             new_purchased = purchased - 1
+            was_purchased = True
         # 3. 皆無額度
         else:
-            return (False, 0, 0)
+            return (False, 0, 0, False)
 
         # 更新資料庫
         with conn.cursor() as cur:
@@ -207,7 +209,36 @@ def consume_quota(user_id, month_str):
             """, (new_usage, new_purchased, user_id))
         conn.commit()
         
-        return (True, max(0, free_limit - new_usage), new_purchased)
+        return (True, max(0, free_limit - new_usage), new_purchased, was_purchased)
+    finally:
+        conn.close()
+
+def refund_quota(user_id, month_str, was_purchased):
+    """
+    退還扣除的額度 (當健檢後續推送失敗或出錯時回滾)
+    """
+    conn = get_connection()
+    if not conn:
+        return
+    try:
+        data = get_user_status_data(user_id, month_str)
+        usage = int(data.get("usage", 0))
+        purchased = int(data.get("purchased", 0))
+        
+        if was_purchased:
+            new_usage = usage
+            new_purchased = purchased + 1
+        else:
+            new_usage = max(0, usage - 1)
+            new_purchased = purchased
+            
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users 
+                SET usage_count = %s, purchased_quota = %s
+                WHERE user_id = %s
+            """, (new_usage, new_purchased, user_id))
+        conn.commit()
     finally:
         conn.close()
 

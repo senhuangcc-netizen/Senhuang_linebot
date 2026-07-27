@@ -253,5 +253,66 @@ class TestPayments(unittest.TestCase):
         self.assertIn("商務旗艦", sent_text)
         self.assertIn("【重要提醒】系統限制每位用戶只能訂閱「一個」包月方案", sent_text)
 
+    @patch('app.database')
+    @patch('app.client')
+    @patch('app.ig_card_generator')
+    def test_diagnosis_push_failure_rollback(self, mock_card, mock_gemini_client, mock_db):
+        # Configure user mode and images
+        mock_db.get_user_mode.return_value = "AI"
+        mock_db.get_user_status_data.return_value = {
+            "free_limit": 3,
+            "usage": 1,
+            "purchased": 0,
+            "tier": "FREE"
+        }
+        mock_db.get_user_display_name.return_value = "Test User"
+        
+        # Mock Gemini response
+        mock_response = MagicMock()
+        mock_response.text = '分析結果：###DATA:{"title":"陶器","prob":"80%","valuation":"TWD 5,000"}###'
+        mock_gemini_client.models.generate_content.return_value = mock_response
+        
+        # Mock card generator
+        mock_card.generate_ig_card.return_value = "test_card.jpg"
+        
+        # Mock consume_quota to return was_purchased=False
+        mock_db.consume_quota.return_value = (True, 1, 0, False)
+        
+        # Mock push_message to raise LineBotApiError (429)
+        from linebot.exceptions import LineBotApiError
+        mock_err_detail = MagicMock()
+        mock_err_detail.message = "You have reached your monthly limit."
+        mock_push = MagicMock(side_effect=LineBotApiError(status_code=429, headers={}, error=mock_err_detail))
+        app.line_bot_api.push_message = mock_push
+        
+        # Mock reply_message
+        mock_reply = MagicMock()
+        app.line_bot_api.reply_message = mock_reply
+        
+        # Simulate text event
+        mock_event = MagicMock()
+        mock_event.source.user_id = "U12345"
+        mock_event.message.text = "開始健檢"
+        mock_event.reply_token = "reply_tok_1"
+        
+        # Put mock images in user_images
+        app.user_images = {"U12345": [{"data": b"image_data", "mime_type": "image/jpeg"}]}
+        
+        # Call handle_message
+        app.handle_message(mock_event)
+        
+        # Assertions:
+        # 1. consume_quota was called
+        mock_db.consume_quota.assert_called_once()
+        
+        # 2. refund_quota was called because push failed
+        mock_db.refund_quota.assert_called_once_with("U12345", unittest.mock.ANY, False)
+        
+        # 3. user_images is cleared
+        self.assertEqual(app.user_images.get("U12345"), [])
+        
+        # 4. user mode is set back to HUMAN
+        mock_db.set_user_mode.assert_called_with("U12345", "HUMAN")
+
 if __name__ == '__main__':
     unittest.main()

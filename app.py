@@ -1302,22 +1302,29 @@ def handle_message(event):
                 # 判斷是否為拒絕受理的物件
                 is_rejected = "您所上傳的照片不在檢測項目內" in resp_text
                 
-                card_url = None
-                quota_suffix = ""
-                
+                quota_consumed = False
+                was_purchased_quota = False
+
                 if not is_rejected:
                     card_filename = ig_card_generator.generate_ig_card(
                         user_id, title, prob, valuation, first_image_bytes, user_name=display_name
                     )
                     # ---- 實際扣除使用次數 ----
-                    success, rem_free, rem_purchased = database.consume_quota(user_id, month_str)
+                    success, rem_free, rem_purchased, was_purchased = database.consume_quota(user_id, month_str)
+                    if success:
+                        quota_consumed = True
+                        was_purchased_quota = was_purchased
                     quota_suffix = f"\n\n---\n📊 目前剩餘可健檢額度：\n🎁 本月免費/訂閱額度：{rem_free} 次\n🪙 單筆儲值備用點數：{rem_purchased} 點"
                     
                     railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
                     if railway_domain:
                         host_url = f"https://{railway_domain}"
                     else:
-                        host_url = request.host_url.rstrip("/")
+                        from flask import has_request_context
+                        if has_request_context():
+                            host_url = request.host_url.rstrip("/")
+                        else:
+                            host_url = "http://localhost:8080"
                     card_url = f"{host_url}/cards/{card_filename}"
 
                     # ---- 寫入歷史健檢資料 (防禦性異常容錯) ----
@@ -1381,8 +1388,27 @@ def handle_message(event):
                 import traceback
                 print(f"Gemini Analysis Error: {e}")
                 print(traceback.format_exc())
-                line_bot_api.push_message(user_id, TextSendMessage(text="抱歉，A.A.D 系統分析過程中發生錯誤，請稍後再試。"))
-                # 發生錯誤也清空暫存，並切回人工模式
+                
+                # ---- 發生錯誤時安全退還已扣除的額度 (回滾) ----
+                if quota_consumed:
+                    try:
+                        database.refund_quota(user_id, month_str, was_purchased_quota)
+                        print(f"[Quota Rollback] Successfully refunded quota for user {user_id}")
+                    except Exception as refund_err:
+                        print(f"[Quota Rollback] Failed to refund quota: {refund_err}")
+                
+                # ---- 安全發送錯誤訊息通知 ----
+                try:
+                    # 避免 429 超限時重複呼叫 push_message 導致再次崩潰
+                    is_line_limit = "monthly limit" in str(e) or (hasattr(e, "status_code") and e.status_code == 429)
+                    if is_line_limit:
+                        print(f"LINE monthly limit reached. Skipping error notification push to {user_id}")
+                    else:
+                        line_bot_api.push_message(user_id, TextSendMessage(text="抱歉，A.A.D 系統分析過程中發生錯誤，請稍後再試。"))
+                except Exception as push_err:
+                    print(f"Failed to send error notification: {push_err}")
+                
+                # 發生錯誤也務必清空暫存，並切回人工模式，以防用戶卡死
                 user_images[user_id] = []
                 database.set_user_mode(user_id, "HUMAN")
                 return
