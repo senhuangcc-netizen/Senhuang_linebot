@@ -1209,14 +1209,99 @@ def handle_message(event):
         database.set_user_mode(user_id, "AI")
         current_mode = "AI"
 
+    # 取得結果與檢測狀態查詢（免除模式限制，隨時可索取已完成之報告）
+    if user_msg in ["取得結果", "【取得結果】"]:
+        latest = database.get_latest_diagnosis_record(user_id)
+        if not latest:
+            msg = "💡 您目前沒有進行中的健檢項目。請先上傳文物照片，再點擊『開始健檢』！"
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+            return
+        
+        status = latest.get("status")
+        if status == "PENDING":
+            msg = "⏳ 您的健檢報告正在快馬加鞭分析中，請稍候再點擊一次『【取得結果】』！"
+            from linebot.models import QuickReply, QuickReplyButton, MessageAction
+            quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="【取得結果】", text="【取得結果】"))])
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=quick_reply))
+            return
+        elif status == "FAILED":
+            msg = "⚠️ 健檢分析過程中發生錯誤，或您上傳的文物不符合檢測項目。請重新上傳照片並點擊『開始健檢』。"
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+            return
+        elif status == "COMPLETED":
+            resp_text = latest.get("report_text") or "無報告內容"
+            card_filename = latest.get("card_filename")
+            
+            # 獲取當前剩餘額度資訊
+            from datetime import datetime, timezone, timedelta
+            tz_tw = timezone(timedelta(hours=8))
+            now = datetime.now(tz_tw)
+            month_str = f"{now.year}-{now.month:02d}"
+            user_state = database.get_user_status_data(user_id, month_str)
+            rem_free = user_state.get('free_limit', 3) - user_state.get('usage', 0)
+            if rem_free < 0:
+                rem_free = 0
+            rem_purchased = user_state.get('purchased', 0)
+            
+            quota_suffix = f"\n\n---\n📊 目前剩餘可健檢額度：\n🎁 本月免費/訂閱額度：{rem_free} 次\n🪙 單筆儲值備用點數：{rem_purchased} 點"
+            
+            MAX_LEN = 4800
+            messages_to_send = []
+            
+            if len(resp_text) <= MAX_LEN:
+                messages_to_send.append(TextSendMessage(text=resp_text + quota_suffix))
+            else:
+                chunks = []
+                remaining = resp_text
+                while remaining:
+                    if len(remaining) <= MAX_LEN:
+                        chunks.append(remaining)
+                        break
+                    cut_pos = remaining.rfind('\n', 0, MAX_LEN)
+                    if cut_pos == -1:
+                        cut_pos = MAX_LEN
+                    chunks.append(remaining[:cut_pos])
+                    remaining = remaining[cut_pos:].lstrip('\n')
+                
+                for i, chunk in enumerate(chunks):
+                    if i == len(chunks) - 1:
+                        messages_to_send.append(TextSendMessage(text=chunk + quota_suffix))
+                    else:
+                        messages_to_send.append(TextSendMessage(text=chunk))
+            
+            if card_filename:
+                railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+                if railway_domain:
+                    host_url = f"https://{railway_domain}"
+                else:
+                    from flask import has_request_context
+                    if has_request_context():
+                        host_url = request.host_url.rstrip("/")
+                    else:
+                        host_url = "http://localhost:8080"
+                card_url = f"{host_url}/cards/{card_filename}"
+                messages_to_send.append(ImageSendMessage(original_content_url=card_url, preview_image_url=card_url))
+            
+            line_bot_api.reply_message(event.reply_token, messages_to_send)
+            return
+
     if current_mode == "HUMAN":
         # 人工模式下完全靜音，讓真人透過 LINE 後台回覆
         print(f"人工模式中，忽略訊息: {user_msg}")
         return
 
     elif current_mode == "AI":
-        # --- 新增防呆機制：觸發健檢 ---
+        # --- 觸發健檢 ---
         if user_msg == "開始健檢":
+            # 檢查是否有正在進行的健檢項目
+            latest = database.get_latest_diagnosis_record(user_id)
+            if latest and latest.get("status") == "PENDING":
+                msg = "⏳ 您的健檢正在進行中，分析大約需要 30 秒。請稍候再點擊下方『【取得結果】』！"
+                from linebot.models import QuickReply, QuickReplyButton, MessageAction
+                quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="【取得結果】", text="【取得結果】"))])
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=quick_reply))
+                return
+
             # 檢查是否有上傳照片
             if user_id not in user_images or len(user_images[user_id]) == 0:
                 msg = (
@@ -1239,185 +1324,128 @@ def handle_message(event):
             user_state = database.get_user_status_data(user_id, month_str)
             tier = user_state.get('tier', 'FREE')
             
+            # 獲取使用者 LINE 暱稱作為健檢操作者
+            display_name = "VIP 藏家"
             try:
-                # 告知用戶正在處理
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🔍 系統正在分析您的照片，請稍候... (您的方案：{tier})"))
-                
-                # 圖片分析改用 generate_content
-                prompt = "請根據這些照片，嚴格依照【AI文物健檢規則與原則】與【Response Format】進行分析。"
-                
-                # 構建新版 SDK payload，將圖片字典轉為 types.Part.from_bytes
-                payload = [prompt]
-                first_image_bytes = None
-                for item in user_images[user_id]:
-                    if isinstance(item, dict) and "data" in item:
-                        if first_image_bytes is None:
-                            first_image_bytes = item["data"]
-                        payload.append(types.Part.from_bytes(
-                            data=item["data"],
-                            mime_type=item.get("mime_type", "image/jpeg")
-                        ))
-                    else:
-                        payload.append(item)
-                        
-                response = client.models.generate_content(
-                    model=gemini_model_name,
-                    contents=payload,
-                    config=gemini_config
-                )
-                
-                resp_text = response.text
-                title = "古文物珍品"
-                prob = "75%"
-                valuation = "TWD 10萬~15萬"
-                
-                # 嘗試找尋 ###DATA:{...}###
-                data_match = re.search(r"###DATA:(\{.*?\})###", resp_text)
-                if data_match:
-                    try:
-                        data_json = json.loads(data_match.group(1))
-                        title = data_json.get("title", title)
-                        prob = data_json.get("prob", prob)
-                        valuation = data_json.get("valuation", valuation)
-                    except:
-                        pass
-                    # 將 DATA 標籤自給用戶顯示的文字中移除
-                    resp_text = resp_text.replace(data_match.group(0), "").strip()
+                profile = line_bot_api.get_profile(user_id)
+                display_name = profile.display_name
+            except Exception as e:
+                app.logger.warning(f"Failed to fetch LINE profile display name: {e}")
 
-                # 使用正則從文字中提取以確保跟文字完全一致 (優先覆蓋)
-                prob_m = re.search(r"真品機率評估為：.*?(\d+\s*%)", resp_text)
-                if prob_m:
-                    prob = prob_m.group(1)
-                
-                title_m = re.search(r"分析為一件[「\[]*(.*?)[」\]]*其當前市場參考價值", resp_text)
-                if title_m:
-                    title = title_m.group(1).strip()
-                    
-                price_m = re.search(r"當前市場參考價值約落在[「\[]*(.*?)[」\]]*[。\n]", resp_text)
-                if price_m:
-                    valuation = price_m.group(1).strip()
-
-                # 獲取使用者 LINE 暱稱作為健檢操作者
-                display_name = "VIP 藏家"
-                try:
-                    profile = line_bot_api.get_profile(user_id)
-                    display_name = profile.display_name
-                except Exception as e:
-                    app.logger.warning(f"Failed to fetch LINE profile display name: {e}")
-
-                # 判斷是否為拒絕受理的物件
-                is_rejected = "您所上傳的照片不在檢測項目內" in resp_text
-                
+            # 1. 建立一個 PENDING 的檢測紀錄
+            record_id = database.create_pending_diagnosis(user_id, display_name)
+            
+            # 2. 立即以 reply_message 回覆告知用戶
+            msg = f"🔍 系統已開始為您進行文物健檢，分析大約需要 30 秒 (您的方案：{tier})。\n\n請在 30 秒後點擊下方『【取得結果】』按鈕讀取報告！"
+            from linebot.models import QuickReply, QuickReplyButton, MessageAction
+            quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="【取得結果】", text="【取得結果】"))])
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=quick_reply))
+            
+            # 3. 備份照片暫存並清空
+            images_to_process = list(user_images[user_id])
+            user_images[user_id] = []
+            
+            # 4. 啟動背景執行緒跑 Gemini 與圖卡繪製，完成後儲存，不主動 push
+            def run_diagnosis_task():
                 quota_consumed = False
                 was_purchased_quota = False
-
-                if not is_rejected:
-                    card_filename = ig_card_generator.generate_ig_card(
-                        user_id, title, prob, valuation, first_image_bytes, user_name=display_name
-                    )
-                    # ---- 實際扣除使用次數 ----
-                    success, rem_free, rem_purchased, was_purchased = database.consume_quota(user_id, month_str)
-                    if success:
-                        quota_consumed = True
-                        was_purchased_quota = was_purchased
-                    quota_suffix = f"\n\n---\n📊 目前剩餘可健檢額度：\n🎁 本月免費/訂閱額度：{rem_free} 次\n🪙 單筆儲值備用點數：{rem_purchased} 點"
-                    
-                    railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
-                    if railway_domain:
-                        host_url = f"https://{railway_domain}"
-                    else:
-                        from flask import has_request_context
-                        if has_request_context():
-                            host_url = request.host_url.rstrip("/")
-                        else:
-                            host_url = "http://localhost:8080"
-                    card_url = f"{host_url}/cards/{card_filename}"
-
-                    # ---- 寫入歷史健檢資料 (防禦性異常容錯) ----
-                    try:
-                        cat = classify_category(title, resp_text)
-                        prob_num = 75
-                        prob_clean = prob.replace("%", "").strip()
-                        if prob_clean.isdigit():
-                            prob_num = int(prob_clean)
-                        val_min, val_max = parse_valuation_numeric(valuation)
-                        database.add_diagnosis_record(user_id, display_name, cat, title, prob_num, valuation, val_min, val_max, card_filename)
-                    except Exception as record_err:
-                        app.logger.error(f"Failed to save diagnosis record: {record_err}")
-                
-                # 清空該用戶的暫存照片
-                user_images[user_id] = []
-                
-                # LINE 單則訊息上限 5000 字，超過需要拆分
-                MAX_LEN = 4800  # 留緩衝給 quota_suffix
-                messages_to_send = []
-                
-                if len(resp_text) <= MAX_LEN:
-                    # 文字足夠短，直接一則送出
-                    messages_to_send.append(TextSendMessage(text=resp_text + quota_suffix))
-                else:
-                    # 將 resp_text 切成多段，每段不超過 4800 字
-                    chunks = []
-                    remaining = resp_text
-                    while remaining:
-                        if len(remaining) <= MAX_LEN:
-                            chunks.append(remaining)
-                            break
-                        # 嘗試在最近的換行符切割
-                        cut_pos = remaining.rfind('\n', 0, MAX_LEN)
-                        if cut_pos == -1:
-                            cut_pos = MAX_LEN
-                        chunks.append(remaining[:cut_pos])
-                        remaining = remaining[cut_pos:].lstrip('\n')
-                    
-                    # 第一段直接送出
-                    for i, chunk in enumerate(chunks):
-                        if i == len(chunks) - 1:
-                            # 最後一段附加額度資訊
-                            messages_to_send.append(TextSendMessage(text=chunk + quota_suffix))
-                        else:
-                            messages_to_send.append(TextSendMessage(text=chunk))
-                
-                if card_url:
-                    messages_to_send.append(ImageSendMessage(original_content_url=card_url, preview_image_url=card_url))
-                
-                line_bot_api.push_message(
-                    user_id,
-                    messages_to_send
-                )
-                
-                # 健檢結束後，自動切換回人工模式，避免影響後續對話或動作
-                database.set_user_mode(user_id, "HUMAN")
-                return
-                
-            except Exception as e:
-                import traceback
-                print(f"Gemini Analysis Error: {e}")
-                print(traceback.format_exc())
-                
-                # ---- 發生錯誤時安全退還已扣除的額度 (回滾) ----
-                if quota_consumed:
-                    try:
-                        database.refund_quota(user_id, month_str, was_purchased_quota)
-                        print(f"[Quota Rollback] Successfully refunded quota for user {user_id}")
-                    except Exception as refund_err:
-                        print(f"[Quota Rollback] Failed to refund quota: {refund_err}")
-                
-                # ---- 安全發送錯誤訊息通知 ----
                 try:
-                    # 避免 429 超限時重複呼叫 push_message 導致再次崩潰
-                    is_line_limit = "monthly limit" in str(e) or (hasattr(e, "status_code") and e.status_code == 429)
-                    if is_line_limit:
-                        print(f"LINE monthly limit reached. Skipping error notification push to {user_id}")
-                    else:
-                        line_bot_api.push_message(user_id, TextSendMessage(text="抱歉，A.A.D 系統分析過程中發生錯誤，請稍後再試。"))
-                except Exception as push_err:
-                    print(f"Failed to send error notification: {push_err}")
-                
-                # 發生錯誤也務必清空暫存，並切回人工模式，以防用戶卡死
-                user_images[user_id] = []
-                database.set_user_mode(user_id, "HUMAN")
-                return
+                    # 圖片分析改用 generate_content
+                    prompt = "請根據這些照片，嚴格依照【AI文物健檢規則與原則】與【Response Format】進行分析。"
+                    
+                    payload = [prompt]
+                    first_image_bytes = None
+                    for item in images_to_process:
+                        if isinstance(item, dict) and "data" in item:
+                            if first_image_bytes is None:
+                                first_image_bytes = item["data"]
+                            payload.append(types.Part.from_bytes(
+                                data=item["data"],
+                                mime_type=item.get("mime_type", "image/jpeg")
+                            ))
+                        else:
+                            payload.append(item)
+                            
+                    response = client.models.generate_content(
+                        model=gemini_model_name,
+                        contents=payload,
+                        config=gemini_config
+                    )
+                    
+                    resp_text = response.text
+                    title = "古文物珍品"
+                    prob = "75%"
+                    valuation = "TWD 10萬~15萬"
+                    
+                    # 嘗試找尋 ###DATA:{...}###
+                    data_match = re.search(r"###DATA:(\{.*?\})###", resp_text)
+                    if data_match:
+                        try:
+                            data_json = json.loads(data_match.group(1))
+                            title = data_json.get("title", title)
+                            prob = data_json.get("prob", prob)
+                            valuation = data_json.get("valuation", valuation)
+                        except:
+                            pass
+                        resp_text = resp_text.replace(data_match.group(0), "").strip()
+
+                    prob_m = re.search(r"真品機率評估為：.*?(\d+\s*%)", resp_text)
+                    if prob_m:
+                        prob = prob_m.group(1)
+                    
+                    title_m = re.search(r"分析為一件[「\[]*(.*?)[」\]]*其當前市場參考價值", resp_text)
+                    if title_m:
+                        title = title_m.group(1).strip()
+                        
+                    price_m = re.search(r"當前市場參考價值約落在[「\[]*(.*?)[」\]]*[。\n]", resp_text)
+                    if price_m:
+                        valuation = price_m.group(1).strip()
+
+                    is_rejected = "您所上傳的照片不在檢測項目內" in resp_text
+                    
+                    card_filename = None
+                    if not is_rejected:
+                        card_filename = ig_card_generator.generate_ig_card(
+                            user_id, title, prob, valuation, first_image_bytes, user_name=display_name
+                        )
+                        # ---- 實際扣除使用次數 ----
+                        success, rem_free, rem_purchased, was_purchased = database.consume_quota(user_id, month_str)
+                        if success:
+                            quota_consumed = True
+                            was_purchased_quota = was_purchased
+                    
+                    # 寫入結果
+                    cat = classify_category(title, resp_text)
+                    prob_num = 75
+                    prob_clean = prob.replace("%", "").strip()
+                    if prob_clean.isdigit():
+                        prob_num = int(prob_clean)
+                    val_min, val_max = parse_valuation_numeric(valuation)
+                    
+                    database.complete_diagnosis_record(
+                        record_id, cat, title, prob_num, valuation, val_min, val_max, card_filename, resp_text
+                    )
+                except Exception as bg_err:
+                    import logging
+                    logging.error(f"Background handler error in run_diagnosis_task: {bg_err}")
+                    # 發生錯誤標註失敗
+                    try:
+                        database.fail_diagnosis_record(record_id)
+                    except:
+                        pass
+                    # 退還額度
+                    if quota_consumed:
+                        try:
+                            database.refund_quota(user_id, month_str, was_purchased_quota)
+                        except Exception as refund_err:
+                            logging.error(f"Failed to refund quota in bg: {refund_err}")
+                finally:
+                    # 結束後自動切換回人工模式
+                    database.set_user_mode(user_id, "HUMAN")
+
+            import threading
+            threading.Thread(target=run_diagnosis_task, daemon=True).start()
+            return
 
         # 將用戶輸入的文字視為物件說明加入暫存
         if user_id not in user_images:

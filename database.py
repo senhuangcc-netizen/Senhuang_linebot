@@ -75,6 +75,8 @@ def init_db():
             ''')
             # 擴充新欄位: 健檢評分卡圖片檔名
             cur.execute("ALTER TABLE diagnosis_records ADD COLUMN IF NOT EXISTS card_filename TEXT;")
+            cur.execute("ALTER TABLE diagnosis_records ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'COMPLETED';")
+            cur.execute("ALTER TABLE diagnosis_records ADD COLUMN IF NOT EXISTS report_text TEXT;")
             
             # 執行資料庫欄位遷移：將既存的 TIMESTAMP 改為 TIMESTAMPTZ 並指定以 UTC 解析
             cur.execute("""
@@ -448,7 +450,7 @@ def get_user_diagnoses(user_id):
             cur.execute("""
                 SELECT id, category, title, probability, valuation_text, val_min, val_max, card_filename, TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI:SS') as formatted_date
                 FROM diagnosis_records
-                WHERE user_id = %s
+                WHERE user_id = %s AND status = 'COMPLETED'
                 ORDER BY created_at DESC
             """, (user_id,))
             return [dict(row) for row in cur.fetchall()]
@@ -505,10 +507,72 @@ def add_diagnosis_record(user_id, display_name, category, title, probability, va
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO diagnosis_records (user_id, display_name, category, title, probability, valuation_text, val_min, val_max, card_filename)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO diagnosis_records (user_id, display_name, category, title, probability, valuation_text, val_min, val_max, card_filename, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'COMPLETED')
             """, (user_id, display_name, category, title, probability, valuation_text, val_min, val_max, card_filename))
         conn.commit()
+    finally:
+        conn.close()
+
+def create_pending_diagnosis(user_id, display_name):
+    conn = get_connection()
+    if not conn: return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO diagnosis_records (user_id, display_name, status)
+                VALUES (%s, %s, 'PENDING')
+                RETURNING id
+            """, (user_id, display_name))
+            row = cur.fetchone()
+            conn.commit()
+            return row['id'] if row else None
+    finally:
+        conn.close()
+
+def complete_diagnosis_record(record_id, category, title, probability, valuation_text, val_min, val_max, card_filename, report_text):
+    conn = get_connection()
+    if not conn: return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE diagnosis_records 
+                SET category = %s, title = %s, probability = %s, valuation_text = %s, 
+                    val_min = %s, val_max = %s, card_filename = %s, report_text = %s, status = 'COMPLETED'
+                WHERE id = %s
+            """, (category, title, probability, valuation_text, val_min, val_max, card_filename, report_text, record_id))
+            conn.commit()
+    finally:
+        conn.close()
+
+def fail_diagnosis_record(record_id):
+    conn = get_connection()
+    if not conn: return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE diagnosis_records 
+                SET status = 'FAILED'
+                WHERE id = %s
+            """, (record_id,))
+            conn.commit()
+    finally:
+        conn.close()
+
+def get_latest_diagnosis_record(user_id):
+    conn = get_connection()
+    if not conn: return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, status, report_text, card_filename, category, title, probability, valuation_text 
+                FROM diagnosis_records
+                WHERE user_id = %s
+                ORDER BY id DESC
+                LIMIT 1
+            """, (user_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
     finally:
         conn.close()
 
@@ -517,15 +581,15 @@ def get_analytics_summary(date_range='30days'):
     if not conn:
         return {"total": 0, "avg_prob": 0, "total_val": 0, "categories": {}, "probabilities": {}, "timeline": []}
         
-    time_filter = ""
+    time_filter = "WHERE status = 'COMPLETED'"
     if date_range == 'today':
-        time_filter = "WHERE created_at >= CURRENT_DATE"
+        time_filter = "WHERE status = 'COMPLETED' AND created_at >= CURRENT_DATE"
     elif date_range == '7days':
-        time_filter = "WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'"
+        time_filter = "WHERE status = 'COMPLETED' AND created_at >= CURRENT_DATE - INTERVAL '7 days'"
     elif date_range == '30days':
-        time_filter = "WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'"
+        time_filter = "WHERE status = 'COMPLETED' AND created_at >= CURRENT_DATE - INTERVAL '30 days'"
     elif date_range == 'month':
-        time_filter = "WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)"
+        time_filter = "WHERE status = 'COMPLETED' AND created_at >= DATE_TRUNC('month', CURRENT_DATE)"
         
     try:
         with conn.cursor() as cur:
@@ -578,7 +642,7 @@ def get_analytics_summary(date_range='30days'):
             cur.execute(f"""
                 SELECT TO_CHAR(created_at, 'YYYY-MM-DD') as date, COUNT(*)
                 FROM diagnosis_records
-                WHERE created_at >= CURRENT_DATE - INTERVAL '{days_interval}'
+                WHERE status = 'COMPLETED' AND created_at >= CURRENT_DATE - INTERVAL '{days_interval}'
                 GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
                 ORDER BY date ASC
             """)
@@ -599,15 +663,15 @@ def get_recent_diagnoses(date_range='all', limit=50):
     conn = get_connection()
     if not conn: return []
     
-    time_filter = ""
+    time_filter = "WHERE status = 'COMPLETED'"
     if date_range == 'today':
-        time_filter = "WHERE created_at >= CURRENT_DATE"
+        time_filter = "WHERE status = 'COMPLETED' AND created_at >= CURRENT_DATE"
     elif date_range == '7days':
-        time_filter = "WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'"
+        time_filter = "WHERE status = 'COMPLETED' AND created_at >= CURRENT_DATE - INTERVAL '7 days'"
     elif date_range == '30days':
-        time_filter = "WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'"
+        time_filter = "WHERE status = 'COMPLETED' AND created_at >= CURRENT_DATE - INTERVAL '30 days'"
     elif date_range == 'month':
-        time_filter = "WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)"
+        time_filter = "WHERE status = 'COMPLETED' AND created_at >= DATE_TRUNC('month', CURRENT_DATE)"
         
     try:
         with conn.cursor() as cur:
@@ -632,6 +696,7 @@ def get_vip_leaderboard(limit=10):
                 SELECT r.user_id, COALESCE(u.display_name, r.display_name, '隱藏藏家') as display_name, COALESCE(u.subscription_tier, 'FREE') as subscription_tier, COUNT(*) as count
                 FROM diagnosis_records r
                 LEFT JOIN users u ON r.user_id = u.user_id
+                WHERE r.status = 'COMPLETED'
                 GROUP BY r.user_id, u.display_name, r.display_name, u.subscription_tier
                 ORDER BY count DESC
                 LIMIT %s

@@ -278,12 +278,8 @@ class TestPayments(unittest.TestCase):
         # Mock consume_quota to return was_purchased=False
         mock_db.consume_quota.return_value = (True, 1, 0, False)
         
-        # Mock push_message to raise LineBotApiError (429)
-        from linebot.exceptions import LineBotApiError
-        mock_err_detail = MagicMock()
-        mock_err_detail.message = "You have reached your monthly limit."
-        mock_push = MagicMock(side_effect=LineBotApiError(status_code=429, headers={}, error=mock_err_detail))
-        app.line_bot_api.push_message = mock_push
+        # Mock complete_diagnosis_record to fail, triggering a rollback
+        mock_db.complete_diagnosis_record.side_effect = Exception("DB save failed")
         
         # Mock reply_message
         mock_reply = MagicMock()
@@ -298,14 +294,24 @@ class TestPayments(unittest.TestCase):
         # Put mock images in user_images
         app.user_images = {"U12345": [{"data": b"image_data", "mime_type": "image/jpeg"}]}
         
-        # Call handle_message
-        app.handle_message(mock_event)
+        # Mock threading.Thread to run synchronously
+        class MockThread:
+            def __init__(self, target, args=(), kwargs={}, daemon=True):
+                self.target = target
+                self.args = args
+                self.kwargs = kwargs
+            def start(self):
+                self.target(*self.args, **self.kwargs)
+        
+        with unittest.mock.patch('threading.Thread', MockThread):
+            # Call handle_message
+            app.handle_message(mock_event)
         
         # Assertions:
         # 1. consume_quota was called
         mock_db.consume_quota.assert_called_once()
         
-        # 2. refund_quota was called because push failed
+        # 2. refund_quota was called because database save failed after consumption
         mock_db.refund_quota.assert_called_once_with("U12345", unittest.mock.ANY, False)
         
         # 3. user_images is cleared
