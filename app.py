@@ -1336,9 +1336,9 @@ def handle_message(event):
             record_id = database.create_pending_diagnosis(user_id, display_name)
             
             # 2. 立即以 reply_message 回覆告知用戶
-            msg = f"🔍 系統已開始為您進行文物健檢，分析大約需要 30 秒 (您的方案：{tier})。\n\n請在 30 秒後點擊下方『【取得結果】』按鈕讀取報告！"
+            msg = f"🔍 系統已開始為您進行文物健檢，分析大約需要 30 秒 (您的方案：{tier})。\n\n請在 30 秒後點擊下方『取得結果』按鈕讀取報告！"
             from linebot.models import QuickReply, QuickReplyButton, MessageAction
-            quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="【取得結果】", text="【取得結果】"))])
+            quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="【取得結果】", text="取得結果"))])
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=quick_reply))
             
             # 3. 備份照片暫存並清空
