@@ -1685,7 +1685,7 @@ def admin_api_upgrade():
         month_str = f"{now.year}-{now.month:02d}"
         
         # 若有指定月份，以指定月份查詢最新額度
-        query_month = usage_month if usage_month else month_str
+        query_month = usage_month[:7] if (usage_month and len(usage_month) >= 7) else month_str
         user_state = database.get_user_status_data(user_id, query_month)
         free_limit = int(user_state.get('free_limit', 3))
         usage = int(user_state.get('usage', 0))

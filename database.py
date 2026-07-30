@@ -182,14 +182,22 @@ def get_user_status_data(user_id, month_str):
 
             # 跨月重置邏輯 (僅針對免費方案用戶；付費訂閱用戶的額度跟隨藍新扣款週期重置)
             usage = row['usage_count'] or 0
-            if row['usage_month'] != month_str:
+            db_month = row['usage_month'][:7] if row['usage_month'] else ""
+            if db_month != month_str:
+                tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+                today = datetime.datetime.now(tz_tw)
+                if today.strftime('%Y-%m') == month_str:
+                    write_date = today.strftime('%Y-%m-%d')
+                else:
+                    write_date = f"{month_str}-01"
+
                 if tier == 'FREE':
                     usage = 0
-                    cur.execute("UPDATE users SET usage_month = %s, usage_count = 0 WHERE user_id = %s", (month_str, user_id))
+                    cur.execute("UPDATE users SET usage_month = %s, usage_count = 0 WHERE user_id = %s", (write_date, user_id))
                     conn.commit()
                 else:
                     # 訂閱用戶只更新月份欄位，不重設已使用次數
-                    cur.execute("UPDATE users SET usage_month = %s WHERE user_id = %s", (month_str, user_id))
+                    cur.execute("UPDATE users SET usage_month = %s WHERE user_id = %s", (write_date, user_id))
                     conn.commit()
 
             return {
@@ -309,7 +317,7 @@ def update_subscription(user_id, tier, expiry_str_or_add_months=1):
             else:
                 expiry_str = next_month.strftime('%Y-%m-%d %H:%M:%S')
                 
-            month_str = f"{now.year}-{now.month:02d}"
+            today_str = now.strftime('%Y-%m-%d')
 
             cur.execute("""
                 INSERT INTO users (user_id, subscription_tier, subscription_expiry, usage_count, usage_month)
@@ -320,7 +328,7 @@ def update_subscription(user_id, tier, expiry_str_or_add_months=1):
                     subscription_expiry = EXCLUDED.subscription_expiry,
                     usage_count = 0,
                     usage_month = EXCLUDED.usage_month
-            """, (user_id, tier, expiry_str, month_str))
+            """, (user_id, tier, expiry_str, today_str))
         conn.commit()
     finally:
         conn.close()

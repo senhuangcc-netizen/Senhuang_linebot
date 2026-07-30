@@ -33,10 +33,18 @@ class TestDatabase(unittest.TestCase):
         # Verify that usage_count is reset to 0 (usage returns 0)
         self.assertEqual(status['usage'], 0)
         
+        # Calculate expected write date
+        tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+        today = datetime.datetime.now(tz_tw)
+        if today.strftime('%Y-%m') == "2026-07":
+            expected_date = today.strftime('%Y-%m-%d')
+        else:
+            expected_date = "2026-07-01"
+
         # Verify that database update was called to reset usage_count and usage_month
         mock_cur.execute.assert_any_call(
             "UPDATE users SET usage_month = %s, usage_count = 0 WHERE user_id = %s",
-            ("2026-07", "U12345")
+            (expected_date, "U12345")
         )
 
     @patch('database.get_connection')
@@ -66,10 +74,18 @@ class TestDatabase(unittest.TestCase):
         # Verify that usage_count is NOT reset to 0 (usage returns 12)
         self.assertEqual(status['usage'], 12)
         
+        # Calculate expected write date
+        tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+        today = datetime.datetime.now(tz_tw)
+        if today.strftime('%Y-%m') == "2026-07":
+            expected_date = today.strftime('%Y-%m-%d')
+        else:
+            expected_date = "2026-07-01"
+
         # Verify that only the usage_month is updated without resetting count
         mock_cur.execute.assert_any_call(
             "UPDATE users SET usage_month = %s WHERE user_id = %s",
-            ("2026-07", "U12345")
+            (expected_date, "U12345")
         )
 
 if __name__ == '__main__':
