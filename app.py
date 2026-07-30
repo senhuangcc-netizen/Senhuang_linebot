@@ -1456,8 +1456,10 @@ def handle_message(event):
         img_count = sum(1 for item in user_images[user_id] if isinstance(item, dict))
         text_count = sum(1 for item in user_images[user_id] if isinstance(item, str))
         
-        msg = f"📝 已收到您的文字說明 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他要補充的照片或描述嗎？\n若已傳送完畢，請再點擊『開始健檢』以取得分析結果。"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+        msg = f"📝 已收到您的文字說明 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他要補充的照片或描述嗎？\n若已傳送完畢，請點擊下方『【開始健檢】』或輸入「開始健檢」以取得分析結果。"
+        from linebot.models import QuickReply, QuickReplyButton, MessageAction
+        quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="開始健檢", text="開始健檢"))])
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=quick_reply))
 
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image(event):
@@ -1514,8 +1516,10 @@ def handle_image(event):
                 user_images[user_id] = []
                 database.set_user_mode(user_id, "HUMAN")
                 return
-            msg = f"✅ 已收到照片 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他角度（如底部、特寫）或文字補充嗎？\n若已傳送完畢，請再點擊『開始健檢』以取得分析結果。。"
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+            msg = f"✅ 已收到照片 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他角度（如底部、特寫）或文字補充嗎？\n若已傳送完畢，請點擊下方『【開始健檢】』或輸入「開始健檢」以取得分析結果。"
+            from linebot.models import QuickReply, QuickReplyButton, MessageAction
+            quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="開始健檢", text="開始健檢"))])
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=quick_reply))
 
     except Exception as e:
         print(f"Image Receive Error: {e}")
