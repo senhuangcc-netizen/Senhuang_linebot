@@ -1224,9 +1224,9 @@ def handle_message(event):
         
         status = latest.get("status")
         if status == "PENDING":
-            msg = "⏳ 您的健檢報告正在快馬加鞭分析中，請稍候再點擊一次『【取得結果】』！"
+            msg = "⏳ 您的健檢報告正在快馬加鞭分析中，請稍候再點擊一次『取得結果』！"
             from linebot.models import QuickReply, QuickReplyButton, MessageAction
-            quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="【取得結果】", text="【取得結果】"))])
+            quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="取得結果", text="取得結果"))])
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=quick_reply))
             return
         elif status == "FAILED":
@@ -1301,9 +1301,9 @@ def handle_message(event):
             # 檢查是否有正在進行的健檢項目
             latest = database.get_latest_diagnosis_record(user_id)
             if latest and latest.get("status") == "PENDING":
-                msg = "⏳ 您的健檢正在進行中，分析大約需要 30 秒。請稍候再點擊下方『【取得結果】』！"
+                msg = "⏳ 您的健檢正在進行中，分析大約需要 30 秒。請稍候再點擊下方『取得結果』！"
                 from linebot.models import QuickReply, QuickReplyButton, MessageAction
-                quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="【取得結果】", text="【取得結果】"))])
+                quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="取得結果", text="取得結果"))])
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=quick_reply))
                 return
 
@@ -1470,7 +1470,7 @@ def handle_message(event):
         img_count = sum(1 for item in user_images[user_id] if isinstance(item, dict))
         text_count = sum(1 for item in user_images[user_id] if isinstance(item, str))
         
-        msg = f"📝 已收到您的文字說明 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他要補充的照片或描述嗎？\n若已傳送完畢，請點擊下方『【開始健檢】』或輸入「開始健檢」以取得分析結果。"
+        msg = f"📝 已收到您的文字說明 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他要補充的照片或描述嗎？\n若已傳送完畢，請點擊下方『開始健檢』或輸入「開始健檢」以取得分析結果。"
         from linebot.models import QuickReply, QuickReplyButton, MessageAction
         quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="開始健檢", text="開始健檢"))])
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=quick_reply))
@@ -1530,7 +1530,7 @@ def handle_image(event):
                 user_images[user_id] = []
                 database.set_user_mode(user_id, "HUMAN")
                 return
-            msg = f"✅ 已收到照片 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他角度（如底部、特寫）或文字補充嗎？\n若已傳送完畢，請點擊下方『【開始健檢】』或輸入「開始健檢」以取得分析結果。"
+            msg = f"✅ 已收到照片 (目前暫存 {img_count} 張照片, {text_count} 則說明)。\n\n請問還有其他角度（如底部、特寫）或文字補充嗎？\n若已傳送完畢，請點擊下方『開始健檢』或輸入「開始健檢」以取得分析結果。"
             from linebot.models import QuickReply, QuickReplyButton, MessageAction
             quick_reply = QuickReply(items=[QuickReplyButton(action=MessageAction(label="開始健檢", text="開始健檢"))])
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=quick_reply))
