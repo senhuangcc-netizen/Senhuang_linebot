@@ -1662,20 +1662,31 @@ def admin_api_upgrade():
     tier = data.get("tier")
     points = data.get("points", 0)
     expiry = data.get("expiry")
+    usage_count = data.get("usage_count")
+    usage_month = data.get("usage_month")
     
     if not user_id or tier not in ["BASIC", "ADVANCED", "BUSINESS", "FREE", "ADMIN"]:
         return jsonify({"success": False, "message": "參數不正確"}), 400
         
     try:
+        # 轉換已使用次數
+        try:
+            usage_val = int(usage_count) if usage_count is not None else None
+        except ValueError:
+            usage_val = None
+
         # 手動更新使用者狀態
-        database.manual_update_user(user_id, tier, points, expiry)
+        database.manual_update_user(user_id, tier, points, expiry, usage_count=usage_val, usage_month=usage_month)
         
         # 取得最新額度資訊並推播通知
         from datetime import datetime, timezone, timedelta
         tz_tw = timezone(timedelta(hours=8))
         now = datetime.now(tz_tw)
         month_str = f"{now.year}-{now.month:02d}"
-        user_state = database.get_user_status_data(user_id, month_str)
+        
+        # 若有指定月份，以指定月份查詢最新額度
+        query_month = usage_month if usage_month else month_str
+        user_state = database.get_user_status_data(user_id, query_month)
         free_limit = int(user_state.get('free_limit', 3))
         usage = int(user_state.get('usage', 0))
         purchased = int(user_state.get('purchased', 0))

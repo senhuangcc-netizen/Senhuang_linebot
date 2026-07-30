@@ -374,20 +374,22 @@ def get_payment_order(order_id):
     finally:
         conn.close()
 
-def manual_update_user(user_id, tier, purchased_quota, subscription_expiry):
+def manual_update_user(user_id, tier, purchased_quota, subscription_expiry, usage_count=None, usage_month=None):
     conn = get_connection()
     if not conn: return
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO users (user_id, subscription_tier, purchased_quota, subscription_expiry)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO users (user_id, subscription_tier, purchased_quota, subscription_expiry, usage_count, usage_month)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (user_id) 
                 DO UPDATE SET 
                     subscription_tier = EXCLUDED.subscription_tier,
                     purchased_quota = EXCLUDED.purchased_quota,
-                    subscription_expiry = EXCLUDED.subscription_expiry
-            """, (user_id, tier, purchased_quota, subscription_expiry or None))
+                    subscription_expiry = EXCLUDED.subscription_expiry,
+                    usage_count = EXCLUDED.usage_count,
+                    usage_month = EXCLUDED.usage_month
+            """, (user_id, tier, purchased_quota, subscription_expiry or None, usage_count, usage_month or None))
         conn.commit()
     finally:
         conn.close()
