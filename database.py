@@ -7,7 +7,13 @@ def get_connection():
     if not db_url:
         print("WARNING: DATABASE_URL not found. Database functionality will fail if not deployed on Railway with DB attached.")
         return None
-    return psycopg2.connect(db_url, cursor_factory=DictCursor)
+    conn = psycopg2.connect(db_url, cursor_factory=DictCursor)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SET TIMEZONE='Asia/Taipei';")
+    except Exception as e:
+        print(f"Failed to set database session timezone: {e}")
+    return conn
 
 def init_db():
     conn = get_connection()
@@ -43,7 +49,7 @@ def init_db():
                     order_id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
                     plan_id TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             # 擴充欄位以利追蹤實際金流支付狀態
@@ -64,11 +70,30 @@ def init_db():
                     valuation_text TEXT,
                     val_min BIGINT,
                     val_max BIGINT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             # 擴充新欄位: 健檢評分卡圖片檔名
             cur.execute("ALTER TABLE diagnosis_records ADD COLUMN IF NOT EXISTS card_filename TEXT;")
+            
+            # 執行資料庫欄位遷移：將既存的 TIMESTAMP 改為 TIMESTAMPTZ 並指定以 UTC 解析
+            cur.execute("""
+                SELECT data_type FROM information_schema.columns 
+                WHERE table_name = 'diagnosis_records' AND column_name = 'created_at';
+            """)
+            row = cur.fetchone()
+            if row and row['data_type'] == 'timestamp without time zone':
+                cur.execute("ALTER TABLE diagnosis_records ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';")
+                print("Successfully migrated diagnosis_records.created_at to TIMESTAMPTZ")
+                
+            cur.execute("""
+                SELECT data_type FROM information_schema.columns 
+                WHERE table_name = 'payment_orders' AND column_name = 'created_at';
+            """)
+            row = cur.fetchone()
+            if row and row['data_type'] == 'timestamp without time zone':
+                cur.execute("ALTER TABLE payment_orders ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';")
+                print("Successfully migrated payment_orders.created_at to TIMESTAMPTZ")
             
             # 自動配對與修補歷史紀錄中 card_filename 為 NULL 的項目
             try:
@@ -144,7 +169,9 @@ def get_user_status_data(user_id, month_str):
             if expiry:
                 try:
                     exp_date = datetime.datetime.strptime(expiry, '%Y-%m-%d %H:%M:%S')
-                    if datetime.datetime.now() > exp_date:
+                    tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+                    tw_now = datetime.datetime.now(tz_tw).replace(tzinfo=None)
+                    if tw_now > exp_date:
                         tier = 'FREE' # 過期退回 FREE
                 except:
                     pass
@@ -153,12 +180,17 @@ def get_user_status_data(user_id, month_str):
             limits = {'FREE': 3, 'BASIC': 8, 'ADVANCED': 50, 'BUSINESS': 150, 'ADMIN': 99999}
             free_limit = limits.get(tier, 3)
 
-            # 跨月重置邏輯
+            # 跨月重置邏輯 (僅針對免費方案用戶；付費訂閱用戶的額度跟隨藍新扣款週期重置)
             usage = row['usage_count'] or 0
             if row['usage_month'] != month_str:
-                usage = 0
-                cur.execute("UPDATE users SET usage_month = %s, usage_count = 0 WHERE user_id = %s", (month_str, user_id))
-                conn.commit()
+                if tier == 'FREE':
+                    usage = 0
+                    cur.execute("UPDATE users SET usage_month = %s, usage_count = 0 WHERE user_id = %s", (month_str, user_id))
+                    conn.commit()
+                else:
+                    # 訂閱用戶只更新月份欄位，不重設已使用次數
+                    cur.execute("UPDATE users SET usage_month = %s WHERE user_id = %s", (month_str, user_id))
+                    conn.commit()
 
             return {
                 "tier": tier,
@@ -268,7 +300,8 @@ def update_subscription(user_id, tier, expiry_str_or_add_months=1):
         return
     try:
         with conn.cursor() as cur:
-            now = datetime.datetime.now()
+            tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+            now = datetime.datetime.now(tz_tw)
             next_month = now + datetime.timedelta(days=30)
             
             if isinstance(expiry_str_or_add_months, str):

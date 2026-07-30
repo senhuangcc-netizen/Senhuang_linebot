@@ -108,10 +108,11 @@ def generate_newebpay_period_form_html(order_id, amount, desc, email, notify_url
     """
     產生藍新定期定額 (Credit Card Periodical Payment NPA-B05) 的自提交 HTML 表單
     """
-    from datetime import datetime
+    from datetime import datetime, timezone, timedelta
     
     # 扣款日期：設定為當前月份的今日，例如今日是 21 號，就設定每月 21 號扣款
-    today_day = datetime.now().day
+    tz_tw = timezone(timedelta(hours=8))
+    today_day = datetime.now(tz_tw).day
     period_point = f"{today_day:02d}"
     
     # 依照定期定額手冊規範的參數格式

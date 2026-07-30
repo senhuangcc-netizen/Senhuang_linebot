@@ -849,8 +849,9 @@ def newebpay_return():
                 msg_text = "🎉 [藍新支付] 感謝訂閱！升級為「商務旗艦」年約定期定額方案，本月已開通 1000 次智能健檢！"
             
             # 取得最新額度資訊
-            from datetime import datetime
-            now = datetime.now()
+            from datetime import datetime, timezone, timedelta
+            tz_tw = timezone(timedelta(hours=8))
+            now = datetime.now(tz_tw)
             month_str = f"{now.year}-{now.month:02d}"
             user_state = database.get_user_status_data(user_id, month_str)
             free_limit = int(user_state.get('free_limit', 3))
@@ -929,8 +930,9 @@ def newebpay_period_return():
             if ext_day:
                 expiry_str = f"{ext_day} 23:59:59"
             else:
-                from datetime import datetime, timedelta
-                expiry_str = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
+                from datetime import datetime, timedelta, timezone
+                tz_tw = timezone(timedelta(hours=8))
+                expiry_str = (datetime.now(tz_tw) + timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
             
             warning_note = "\n⚠️【重要提醒】系統限制每位用戶只能訂閱「一個」包月方案。如需更多額度，請於聊天室輸入「購買」並加購「單筆儲值」點數，請勿重複訂閱多個方案，以防被重複扣款。"
             
@@ -947,8 +949,9 @@ def newebpay_period_return():
                 msg_text = "🎉 [藍新訂閱] 您的定期定額委託已成功建立並完成首期扣款！" + warning_note
                 
             # 取得最新額度資訊
-            from datetime import datetime
-            now = datetime.now()
+            from datetime import datetime, timezone, timedelta
+            tz_tw = timezone(timedelta(hours=8))
+            now = datetime.now(tz_tw)
             month_str = f"{now.year}-{now.month:02d}"
             user_state = database.get_user_status_data(user_id, month_str)
             free_limit = int(user_state.get('free_limit', 3))
@@ -1019,8 +1022,9 @@ def ecpay_return():
                 msg_text = "🎉 感謝訂閱！升級為「商務旗艦」，本月擁有 1000 次智能健檢，且人工鑑定折抵 300 元！"
                 
             # 取得最新額度資訊並附加在訊息後方
-            from datetime import datetime
-            now = datetime.now()
+            from datetime import datetime, timezone, timedelta
+            tz_tw = timezone(timedelta(hours=8))
+            now = datetime.now(tz_tw)
             month_str = f"{now.year}-{now.month:02d}"
             user_state = database.get_user_status_data(user_id, month_str)
             free_limit = int(user_state.get('free_limit', 3))
@@ -1108,8 +1112,9 @@ def handle_message(event):
         
     quota_keywords = ["查詢額度", "額度", "我的狀態", "會員狀態"]
     if any(k in user_msg for k in quota_keywords):
-        from datetime import datetime
-        now = datetime.now()
+        from datetime import datetime, timezone, timedelta
+        tz_tw = timezone(timedelta(hours=8))
+        now = datetime.now(tz_tw)
         month_str = f"{now.year}-{now.month:02d}"
         
         user_state = database.get_user_status_data(user_id, month_str)
@@ -1227,8 +1232,9 @@ def handle_message(event):
                 return
             
             # ---- 獲取用戶方案資訊 ----
-            from datetime import datetime
-            now = datetime.now()
+            from datetime import datetime, timezone, timedelta
+            tz_tw = timezone(timedelta(hours=8))
+            now = datetime.now(tz_tw)
             month_str = f"{now.year}-{now.month:02d}"
             user_state = database.get_user_status_data(user_id, month_str)
             tier = user_state.get('tier', 'FREE')
@@ -1500,8 +1506,9 @@ def admin_lookup(order_id):
     user_id = order_info['user_id']
     plan_id = order_info['plan_id']
     
-    from datetime import datetime
-    now = datetime.now()
+    from datetime import datetime, timezone, timedelta
+    tz_tw = timezone(timedelta(hours=8))
+    now = datetime.now(tz_tw)
     month_str = f"{now.year}-{now.month:02d}"
     user_state = database.get_user_status_data(user_id, month_str)
     
@@ -1528,8 +1535,9 @@ def admin_upgrade(user_id, tier):
     database.update_subscription(user_id, tier)
     
     # 取得最新額度資訊
-    from datetime import datetime
-    now = datetime.now()
+    from datetime import datetime, timezone, timedelta
+    tz_tw = timezone(timedelta(hours=8))
+    now = datetime.now(tz_tw)
     month_str = f"{now.year}-{now.month:02d}"
     user_state = database.get_user_status_data(user_id, month_str)
     free_limit = int(user_state.get('free_limit', 3))
@@ -1550,7 +1558,8 @@ def admin_upgrade(user_id, tier):
 @app.route("/admin/debug_user/<user_id>")
 def admin_debug_user(user_id):
     import datetime
-    server_now = datetime.datetime.now()
+    tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+    server_now = datetime.datetime.now(tz_tw)
     conn = database.get_connection()
     if not conn:
         return "無法連線資料庫", 500
@@ -1662,8 +1671,9 @@ def admin_api_upgrade():
         database.manual_update_user(user_id, tier, points, expiry)
         
         # 取得最新額度資訊並推播通知
-        from datetime import datetime
-        now = datetime.now()
+        from datetime import datetime, timezone, timedelta
+        tz_tw = timezone(timedelta(hours=8))
+        now = datetime.now(tz_tw)
         month_str = f"{now.year}-{now.month:02d}"
         user_state = database.get_user_status_data(user_id, month_str)
         free_limit = int(user_state.get('free_limit', 3))
