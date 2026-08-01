@@ -162,6 +162,46 @@ def generate_newebpay_period_form_html(order_id, amount, desc, email, notify_url
     '''
     return form_html
 
+def robust_unpad_and_decode(decrypted_padded):
+    """
+    穩健地去除解密後的補位字元並進行編碼轉換，相容非標準填充、Zero-Padding及尾端控制字元。
+    """
+    # 1. 嘗試標準 PKCS7 Unpadding 與 UTF-8 解碼
+    try:
+        return unpad(decrypted_padded, 16).decode('utf-8')
+    except Exception:
+        pass
+        
+    # 2. 嘗試標準 PKCS7 Unpadding 與 CP950 解碼
+    try:
+        return unpad(decrypted_padded, 16).decode('cp950', errors='ignore')
+    except Exception:
+        pass
+
+    # 3. 容錯處理：若為 JSON 格式且標準 unpad 失敗，尋找最後一個 } 閉合括號
+    try:
+        decrypted_str = decrypted_padded.decode('utf-8', errors='ignore')
+    except Exception:
+        decrypted_str = ""
+        
+    if decrypted_str.strip().startswith('{'):
+        last_brace = decrypted_str.rfind('}')
+        if last_brace != -1:
+            candidate = decrypted_str[:last_brace + 1].strip()
+            try:
+                import json
+                json.loads(candidate)
+                return candidate
+            except Exception:
+                pass
+
+    # 4. 容錯處理：手動移除尾端所有可能的 padding 與控制字元 (0x00 到 0x1f)
+    cleaned_bytes = decrypted_padded.rstrip(b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f')
+    try:
+        return cleaned_bytes.decode('utf-8')
+    except UnicodeDecodeError:
+        return cleaned_bytes.decode('cp950', errors='ignore')
+
 def decrypt_newebpay_period_response(period_hex, hash_key, hash_iv):
     """
     解密藍新定期定額回傳的 Period 密文
@@ -177,21 +217,10 @@ def decrypt_newebpay_period_response(period_hex, hash_key, hash_iv):
         cipher = AES.new(hash_key.encode('utf-8'), AES.MODE_CBC, hash_iv.encode('utf-8'))
         decrypted_padded = cipher.decrypt(encrypted_bytes)
         
-        # 3. PKCS7 Unpadding
-        try:
-            decrypted_bytes = unpad(decrypted_padded, 16)
-        except Exception as pad_err:
-            print(f"[NewebPay Period Decrypt Debug] Unpad failed. Raw decrypted (first 100 bytes): {decrypted_padded[:100]!r}")
-            print(f"[NewebPay Period Decrypt Debug] Raw decrypted (utf-8 attempt): {decrypted_padded[:100].decode('utf-8', errors='ignore')!r}")
-            raise pad_err
+        # 3. 使用穩健去補位與解碼
+        decrypted_str = robust_unpad_and_decode(decrypted_padded)
             
-        # 4. 解碼為字串 (安全防錯)
-        try:
-            decrypted_str = decrypted_bytes.decode('utf-8')
-        except UnicodeDecodeError:
-            decrypted_str = decrypted_bytes.decode('cp950', errors='ignore')
-            
-        # 5. 嘗試以 JSON 解析，若失敗則回歸 Query String 解析
+        # 4. 嘗試以 JSON 解析，若失敗則回歸 Query String 解析
         try:
             return json.loads(decrypted_str)
         except Exception:
@@ -217,21 +246,10 @@ def decrypt_newebpay_response(trade_info_hex, hash_key, hash_iv):
         cipher = AES.new(hash_key.encode('utf-8'), AES.MODE_CBC, hash_iv.encode('utf-8'))
         decrypted_padded = cipher.decrypt(encrypted_bytes)
         
-        # 3. PKCS7 Unpadding
-        try:
-            decrypted_bytes = unpad(decrypted_padded, 16)
-        except Exception as pad_err:
-            print(f"[NewebPay Decrypt Debug] Unpad failed. Raw decrypted (first 100 bytes): {decrypted_padded[:100]!r}")
-            print(f"[NewebPay Decrypt Debug] Raw decrypted (utf-8 attempt): {decrypted_padded[:100].decode('utf-8', errors='ignore')!r}")
-            raise pad_err
+        # 3. 使用穩健去補位與解碼
+        decrypted_str = robust_unpad_and_decode(decrypted_padded)
             
-        # 4. 解碼為字串 (安全防錯)
-        try:
-            decrypted_str = decrypted_bytes.decode('utf-8')
-        except UnicodeDecodeError:
-            decrypted_str = decrypted_bytes.decode('cp950', errors='ignore')
-            
-        # 5. 優先以 JSON 解析，失敗則以 Query String 解析
+        # 4. 優先以 JSON 解析，失敗則以 Query String 解析
         try:
             return json.loads(decrypted_str)
         except Exception:
